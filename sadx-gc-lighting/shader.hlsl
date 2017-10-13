@@ -8,12 +8,12 @@ struct VS_IN
 
 struct PS_IN
 {
-	float4 position : POSITION0;
-	float4 diffuse  : COLOR0;
-	float2 tex      : TEXCOORD0;
+	float4 position    : POSITION0;
+	float4 diffuse     : COLOR0;
+	float2 tex         : TEXCOORD0;
 	float3 worldNormal : TEXCOORD1;
-	float3 half_v : TEXCOORD2;
-	float   fogDist : FOG;
+	float3 halfVector  : TEXCOORD2;
+	float  fogDist     : FOG;
 };
 
 struct StageLight
@@ -152,7 +152,7 @@ PS_IN vs_main(VS_IN input)
 	output.worldNormal = mul(input.normal * NormalScale, (float3x3)WorldMatrix);
 	
 	float3 worldPos = mul(float4(input.position, 1), WorldMatrix).xyz;
-	output.half_v = normalize(normalize(CameraPosition - worldPos) - -LightDirection);
+	output.halfVector = normalize(normalize(CameraPosition - worldPos) + normalize(LightDirection));
 
 	return output;
 }
@@ -161,27 +161,34 @@ float4 ps_main(PS_IN input) : COLOR
 {
 	float4 result;
 
-
 	float4 ambient = 0;
 	float4 diffuse = 0;
 	float4 specular = 0;
 
 #ifdef USE_LIGHT
-	// TODO: ambient
+
 	ambient = float4(LightAmbient.rgb, 0);
 
-	float d = saturate(dot(LightDirection, input.worldNormal));
-	//float d = 1;
+	float d = dot(normalize(LightDirection), input.worldNormal);
 
-	float3 combined = LightDiffuse.rgb * d;
-	diffuse = float4(combined + ambient.rgb, 1);
-	diffuse = saturate(diffuse) * input.diffuse;
+	float3 combined = saturate(LightDiffuse.rgb * d);
+	diffuse = float4(combined, 1);
+
+	// Apply the ambient, clamping it to a sane value.
+	diffuse = saturate(diffuse + ambient);
+
+	// Input diffuse is specifically applied after
+	// everything else to ensure its vibrancy.
+	diffuse *= input.diffuse;
 
 	#ifdef USE_SPECULAR
-		specular.rgb = MaterialSpecular.rgb * pow(saturate(dot(input.half_v, input.worldNormal)), MaterialPower);
-		specular = saturate(specular);
+	{
+		// funny joke
+		float d2 = dot(input.worldNormal, input.halfVector);
 
-		specular.rgb *= LightSpecular.rgb;
+		// TODO: fix material power of 0
+		specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0, d2), MaterialPower));
+	}
 	#endif
 #else
 	diffuse = input.diffuse;
