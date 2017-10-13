@@ -859,52 +859,14 @@ namespace local
 	static void __cdecl njDrawModel_SADX_r(NJS_MODEL_SADX* a1)
 	{
 		begin();
-
-		if (a1 && a1->nbMat && a1->mats)
-		{
-			globals::first_material = true;
-
-			auto _control_3d = _nj_control_3d_flag_;
-			auto _attr_or = _nj_constant_attr_or_;
-			auto _attr_and = _nj_constant_attr_and_;
-
-			run_trampoline(TARGET_DYNAMIC(njDrawModel_SADX), a1);
-
-			_nj_control_3d_flag_ = _control_3d;
-			_nj_constant_attr_and_ = _attr_and;
-			_nj_constant_attr_or_ = _attr_or;
-		}
-		else
-		{
-			run_trampoline(TARGET_DYNAMIC(njDrawModel_SADX), a1);
-		}
-
+		run_trampoline(TARGET_DYNAMIC(njDrawModel_SADX), a1);
 		end();
 	}
 
 	static void __cdecl njDrawModel_SADX_Dynamic_r(NJS_MODEL_SADX* a1)
 	{
 		begin();
-
-		if (a1 && a1->nbMat && a1->mats)
-		{
-			globals::first_material = true;
-
-			auto _control_3d = _nj_control_3d_flag_;
-			auto _attr_or = _nj_constant_attr_or_;
-			auto _attr_and = _nj_constant_attr_and_;
-
-			run_trampoline(TARGET_DYNAMIC(njDrawModel_SADX_Dynamic), a1);
-
-			_nj_control_3d_flag_ = _control_3d;
-			_nj_constant_attr_and_ = _attr_and;
-			_nj_constant_attr_or_ = _attr_or;
-		}
-		else
-		{
-			run_trampoline(TARGET_DYNAMIC(njDrawModel_SADX_Dynamic), a1);
-		}
-
+		run_trampoline(TARGET_DYNAMIC(njDrawModel_SADX_Dynamic), a1);
 		end();
 	}
 
