@@ -40,8 +40,8 @@ static void update_material(const D3DMATERIAL9& material)
 static void __cdecl CorrectMaterial_r()
 {
 	using namespace d3d;
-	D3DMATERIAL9 material;
 
+	D3DMATERIAL9 material;
 	device->GetMaterial(&material);
 
 	material.Power = LSPalette.SP_pow;
