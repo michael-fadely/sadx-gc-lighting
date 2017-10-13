@@ -1,4 +1,7 @@
 #include "stdafx.h"
+#include <cstring>
+#include <ninja.h>
+#include "ShaderParameter.h"
 #include "lights.h"
 
 bool StageLight::operator==(const StageLight& rhs) const
