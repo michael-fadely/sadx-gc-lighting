@@ -1006,21 +1006,20 @@ namespace local
 		target(type);
 		d3d::set_flags(ShaderFlags_Light, true);
 
+		D3DLIGHT9 light {};
+		d3d::device->GetLight(0, &light);
+		param::LightDirection = -D3DXVECTOR3(light.Direction);
+
 		if (type == 0)
 		{
 			auto& sl = CurrentStageLights[0];
 			
-			param::LightDirection = -D3DXVECTOR3(sl.direction.x, sl.direction.y, sl.direction.z);
 			param::LightDiffuse = D3DXCOLOR(sl.diffuse[0], sl.diffuse[1], sl.diffuse[2], 1.0f);
 			param::LightSpecular = D3DXCOLOR(sl.specular, sl.specular, sl.specular, 0.0f);
 			param::LightAmbient = D3DXCOLOR(sl.ambient[0], sl.ambient[1], sl.ambient[2], 0.0f);
 		}
 		else
 		{
-			D3DLIGHT9 light {};
-			d3d::device->GetLight(0, &light);
-
-			param::LightDirection = -D3DXVECTOR3(light.Direction);
 			param::LightDiffuse = light.Diffuse;
 			param::LightSpecular = light.Specular;
 			param::LightAmbient = light.Ambient;
