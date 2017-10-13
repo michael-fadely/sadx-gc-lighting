@@ -6,7 +6,6 @@
 #include <ninja.h>
 
 #include "ShaderParameter.h"
-#include "lights.h"
 
 enum ShaderFlags
 {

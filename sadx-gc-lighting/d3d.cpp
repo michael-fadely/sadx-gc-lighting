@@ -331,7 +331,7 @@ namespace local
 		try
 		{
 			if (!CryptHashData(hHash, shader_file.data(), shader_file.size(), 0)
-				|| !CryptHashData(hHash, (BYTE*)&COMPILER_FLAGS, sizeof(COMPILER_FLAGS), 0))
+				|| !CryptHashData(hHash, reinterpret_cast<const BYTE*>(&COMPILER_FLAGS), sizeof(COMPILER_FLAGS), 0))
 			{
 				throw std::runtime_error("CryptHashData failed.");
 			}
@@ -374,7 +374,7 @@ namespace local
 		if (file.is_open() && size > 0)
 		{
 			shader_file.resize(static_cast<size_t>(size));
-			file.read((char*)shader_file.data(), size);
+			file.read(reinterpret_cast<char*>(shader_file.data()), size);
 		}
 
 		file.close();
@@ -410,7 +410,7 @@ namespace local
 			throw std::exception(error.c_str());
 		}
 
-		file.write((const char*)current_hash.data(), current_hash.size());
+		file.write(reinterpret_cast<const char*>(current_hash.data()), current_hash.size());
 		file.close();
 	}
 
@@ -559,7 +559,7 @@ namespace local
 			throw std::runtime_error("Failed to open file for cache storage.");
 		}
 
-		file.write((char*)data.data(), data.size());
+		file.write(reinterpret_cast<char*>(data.data()), data.size());
 	}
 
 	static VertexShader get_vertex_shader(Uint32 flags)
@@ -575,7 +575,7 @@ namespace local
 		}
 		else
 		{
-			auto it = vertex_shaders.find((ShaderFlags)flags);
+			const auto it = vertex_shaders.find(static_cast<ShaderFlags>(flags));
 			if (it != vertex_shaders.end())
 			{
 				return it->second;
@@ -606,7 +606,7 @@ namespace local
 			Buffer errors;
 			Buffer buffer;
 
-			auto result = D3DXCompileShader((char*)shader_file.data(), shader_file.size(), macros.data(), nullptr,
+			auto result = D3DXCompileShader(reinterpret_cast<char*>(shader_file.data()), shader_file.size(), macros.data(), nullptr,
 				"vs_main", "vs_3_0", COMPILER_FLAGS, &buffer, &errors, nullptr);
 
 			if (FAILED(result) || errors != nullptr)
@@ -619,7 +619,7 @@ namespace local
 		}
 
 		VertexShader shader;
-		auto result = d3d::device->CreateVertexShader((const DWORD*)data.data(), &shader);
+		auto result = d3d::device->CreateVertexShader(reinterpret_cast<const DWORD*>(data.data()), &shader);
 
 		if (FAILED(result))
 		{
@@ -631,7 +631,7 @@ namespace local
 			save_cached_shader(sid_path, data);
 		}
 
-		vertex_shaders[(ShaderFlags)flags] = shader;
+		vertex_shaders[static_cast<ShaderFlags>(flags)] = shader;
 		return shader;
 	}
 
@@ -645,7 +645,7 @@ namespace local
 		}
 		else
 		{
-			auto it = pixel_shaders.find((ShaderFlags)(flags & PS_FLAGS));
+			const auto it = pixel_shaders.find(static_cast<ShaderFlags>(flags & PS_FLAGS));
 			if (it != pixel_shaders.end())
 			{
 				return it->second;
@@ -679,7 +679,7 @@ namespace local
 			Buffer errors;
 			Buffer buffer;
 
-			auto result = D3DXCompileShader((char*)shader_file.data(), shader_file.size(), macros.data(), nullptr,
+			auto result = D3DXCompileShader(reinterpret_cast<char*>(shader_file.data()), shader_file.size(), macros.data(), nullptr,
 				"ps_main", "ps_3_0", COMPILER_FLAGS, &buffer, &errors, nullptr);
 
 			if (FAILED(result) || errors != nullptr)
@@ -692,7 +692,7 @@ namespace local
 		}
 
 		PixelShader shader;
-		auto result = d3d::device->CreatePixelShader((const DWORD*)data.data(), &shader);
+		auto result = d3d::device->CreatePixelShader(reinterpret_cast<const DWORD*>(data.data()), &shader);
 
 		if (FAILED(result))
 		{
@@ -950,7 +950,7 @@ namespace local
 
 	static void __cdecl Direct3D_SetViewportAndTransform_r()
 	{
-		auto original = TARGET_DYNAMIC(Direct3D_SetViewportAndTransform);
+		const auto original = TARGET_DYNAMIC(Direct3D_SetViewportAndTransform);
 		bool invalid = TransformAndViewportInvalid != 0;
 		original();
 
@@ -964,7 +964,7 @@ namespace local
 
 	static void __cdecl Direct3D_PerformLighting_r(int type)
 	{
-		auto target = TARGET_DYNAMIC(Direct3D_PerformLighting);
+		const auto target = TARGET_DYNAMIC(Direct3D_PerformLighting);
 		target(type);
 		d3d::set_flags(ShaderFlags_Light, true);
 
@@ -1081,7 +1081,7 @@ namespace local
 	}
 
 	// ReSharper disable once CppDeclaratorNeverUsed
-	static const auto loc_77EF09 = (void*)0x0077EF09;
+	static const auto loc_77EF09 = reinterpret_cast<void*>(0x0077EF09);
 	static void __declspec(naked) DrawMeshSetBuffer_asm()
 	{
 		__asm
@@ -1151,15 +1151,15 @@ namespace d3d
 		PolyBuff_DrawTriangleStrip_t       = new Trampoline(0x00794760, 0x00794767, PolyBuff_DrawTriangleStrip_r);
 		PolyBuff_DrawTriangleList_t        = new Trampoline(0x007947B0, 0x007947B7, PolyBuff_DrawTriangleList_r);
 
-		WriteJump((void*)0x0077EE45, DrawMeshSetBuffer_asm);
+		WriteJump(reinterpret_cast<void*>(0x0077EE45), DrawMeshSetBuffer_asm);
 
 		// Hijacking a IDirect3DDevice8::SetTransform call in Direct3D_SetNearFarPlanes
 		// to update the projection matrix.
 		// This nops:
 		// mov ecx, [eax] (device)
 		// call dword ptr [ecx+94h] (device->SetTransform)
-		WriteData<8>((void*)0x00403234, 0x90i8);
-		WriteCall((void*)0x00403236, SetTransformHijack);
+		WriteData<8>(reinterpret_cast<void*>(0x00403234), 0x90i8);
+		WriteCall(reinterpret_cast<void*>(0x00403236), SetTransformHijack);
 	}
 }
 
