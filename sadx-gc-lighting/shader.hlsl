@@ -182,17 +182,17 @@ float4 ps_main(PS_IN input) : COLOR
 
 	#ifdef USE_SPECULAR
 	{
-		// funny joke
 		float3 normal = input.worldNormal;
 
 	#ifdef USE_SMOOTH_LIGHTING
 		normal = normalize(normal);
 	#endif
 
+		// funny joke
 		float d2 = dot(normal, input.halfVector);
 
 		// TODO: fix material power of 0
-		specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0, d2), MaterialPower));
+		specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0.0001f, d2), MaterialPower));
 	}
 	#endif
 #else
