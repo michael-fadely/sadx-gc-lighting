@@ -428,6 +428,12 @@ namespace local
 
 	static void populate_macros(Uint32 flags)
 	{
+	#define USE_SMOOTH_LIGHTING
+
+	#ifdef USE_SMOOTH_LIGHTING
+		macros.push_back({ "USE_SMOOTH_LIGHTING", "1" });
+	#endif
+
 		while (flags != 0)
 		{
 			using namespace d3d;

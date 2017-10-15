@@ -138,7 +138,7 @@ PS_IN vs_main(VS_IN input)
 	PS_IN output;
 
 	output.position = mul(float4(input.position, 1), wvMatrix);
-	output.fogDist  = output.position.z;
+	output.fogDist = output.position.z;
 	output.position = mul(output.position, ProjectionMatrix);
 
 #if defined(USE_TEXTURE) && defined(USE_ENVMAP)
@@ -150,7 +150,7 @@ PS_IN vs_main(VS_IN input)
 
 	output.diffuse = GetDiffuse(input.color);
 	output.worldNormal = mul(input.normal * NormalScale, (float3x3)WorldMatrix);
-	
+
 	float3 worldPos = mul(float4(input.position, 1), WorldMatrix).xyz;
 	output.halfVector = normalize(normalize(CameraPosition - worldPos) + normalize(LightDirection));
 
@@ -166,7 +166,6 @@ float4 ps_main(PS_IN input) : COLOR
 	float4 specular = 0;
 
 #ifdef USE_LIGHT
-
 	ambient = float4(LightAmbient.rgb, 0);
 
 	float d = dot(normalize(LightDirection), input.worldNormal);
@@ -184,7 +183,13 @@ float4 ps_main(PS_IN input) : COLOR
 	#ifdef USE_SPECULAR
 	{
 		// funny joke
-		float d2 = dot(input.worldNormal, input.halfVector);
+		float3 normal = input.worldNormal;
+
+	#ifdef USE_SMOOTH_LIGHTING
+		normal = normalize(normal);
+	#endif
+
+		float d2 = dot(normal, input.halfVector);
 
 		// TODO: fix material power of 0
 		specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0, d2), MaterialPower));
