@@ -428,7 +428,7 @@ namespace local
 
 	static void populate_macros(Uint32 flags)
 	{
-	#define USE_SMOOTH_LIGHTING
+	//#define USE_SMOOTH_LIGHTING
 
 	#ifdef USE_SMOOTH_LIGHTING
 		macros.push_back({ "USE_SMOOTH_LIGHTING", "1" });

@@ -191,8 +191,8 @@ float4 ps_main(PS_IN input) : COLOR
 		// funny joke
 		float d2 = dot(normal, input.halfVector);
 
-		// TODO: fix material power of 0
-		specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0.0001f, d2), MaterialPower));
+		// TODO: fix material power of 0 (for real though)
+		specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0.0001f, d2), max(1.0, MaterialPower)));
 	}
 	#endif
 #else
