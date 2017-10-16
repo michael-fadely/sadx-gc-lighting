@@ -51,7 +51,10 @@ namespace param
 	ShaderParameter<D3DXCOLOR>   LightDiffuse(41, {});
 	ShaderParameter<D3DXCOLOR>   LightSpecular(42, {});
 	ShaderParameter<D3DXCOLOR>   LightAmbient(43, {});
-
+	ShaderParameter<float>       ParticleScale(44, 0.0f);
+	ShaderParameter<float>       DepthOverride(45, 0.0f);
+	ShaderParameter<float>       DrawDistance(46, 0.0f);
+	ShaderParameter<D3DXVECTOR4> ViewPort(47, {});
 
 	IShaderParameter* const parameters[] = {
 		&WorldMatrix,
@@ -74,6 +77,10 @@ namespace param
 		&LightDiffuse,
 		&LightSpecular,
 		&LightAmbient,
+		&ParticleScale,
+		&DepthOverride,
+		&DrawDistance,
+		&ViewPort,
 	};
 
 	static void release_parameters()
@@ -132,9 +139,9 @@ namespace local
 
 	constexpr auto COMPILER_FLAGS = D3DXSHADER_PACKMATRIX_ROWMAJOR | D3DXSHADER_OPTIMIZATION_LEVEL3;
 
-	constexpr auto DEFAULT_FLAGS = ShaderFlags_Alpha | ShaderFlags_Fog | ShaderFlags_Light | ShaderFlags_Specular | ShaderFlags_Texture;
+	constexpr auto DEFAULT_FLAGS = ShaderFlags_Alpha | ShaderFlags_Fog | ShaderFlags_Light | ShaderFlags_Texture;
 	constexpr auto VS_FLAGS = ShaderFlags_Texture | ShaderFlags_EnvMap;
-	constexpr auto PS_FLAGS = ShaderFlags_Texture | ShaderFlags_Alpha | ShaderFlags_Fog | ShaderFlags_Light | ShaderFlags_Specular;
+	constexpr auto PS_FLAGS = ShaderFlags_Texture | ShaderFlags_Alpha | ShaderFlags_Fog | ShaderFlags_Light | ShaderFlags_SoftParticle | ShaderFlags_DepthMap;
 
 	static Uint32 shader_flags = DEFAULT_FLAGS;
 	static Uint32 last_flags = DEFAULT_FLAGS;
@@ -142,6 +149,12 @@ namespace local
 	static std::vector<uint8_t> shader_file;
 	static std::unordered_map<ShaderFlags, VertexShader> vertex_shaders;
 	static std::unordered_map<ShaderFlags, PixelShader> pixel_shaders;
+
+	static Texture depth_texture = nullptr;
+	static Texture particle_buffer = nullptr;
+	static Surface original_backbuffer = nullptr;
+	static VertexShader quad_vs = nullptr;
+	static PixelShader quad_ps = nullptr;
 
 	static bool initialized = false;
 	static Uint32 drawing = 0;
@@ -154,6 +167,7 @@ namespace local
 	DataPointer(D3DXMATRIX, WorldMatrix, 0x03D12900);
 	DataPointer(D3DXMATRIX, _ProjectionMatrix, 0x03D129C0);
 	DataPointer(int, TransformAndViewportInvalid, 0x03D0FD1C);
+	DataPointer(D3DPRESENT_PARAMETERS, PresentParameters, 0x03D0FDC0);
 
 	static auto sanitize(Uint32& flags)
 	{
@@ -169,6 +183,14 @@ namespace local
 
 	static void free_shaders()
 	{
+		quad_vs         = nullptr;
+		quad_ps         = nullptr;
+		depth_texture   = nullptr;
+		particle_buffer = nullptr;
+		d3d::device->SetRenderTarget(0, original_backbuffer);
+		d3d::device->SetTexture(1, nullptr);
+		original_backbuffer = nullptr;
+
 		vertex_shaders.clear();
 		pixel_shaders.clear();
 		d3d::vertex_shader = nullptr;
@@ -184,10 +206,38 @@ namespace local
 	static VertexShader get_vertex_shader(Uint32 flags);
 	static PixelShader get_pixel_shader(Uint32 flags);
 
+	static void load_quad_vs();
+	static void load_quad_ps();
+
 	static void create_shaders()
 	{
 		try
 		{
+			load_quad_vs();
+			load_quad_ps();
+
+			param::ViewPort = {
+				static_cast<float>(HorizontalResolution),
+				static_cast<float>(VerticalResolution),
+				0.0f, 0.0f
+			};
+
+			auto format = PresentParameters.BackBufferFormat;
+
+			if (FAILED(d3d::device->CreateTexture(HorizontalResolution, VerticalResolution, 1,
+					D3DUSAGE_RENDERTARGET, D3DFMT_R32F, D3DPOOL_DEFAULT, &depth_texture, nullptr)))
+			{
+				throw std::runtime_error("failed to create depth target");
+			}
+
+			if (FAILED(d3d::device->CreateTexture(HorizontalResolution, VerticalResolution, 1,
+					D3DUSAGE_RENDERTARGET, format, D3DPOOL_DEFAULT, &particle_buffer, nullptr)))
+			{
+				throw std::runtime_error("failed to create particle target");
+			}
+
+			d3d::device->GetRenderTarget(0, &original_backbuffer);
+
 			d3d::vertex_shader = get_vertex_shader(DEFAULT_FLAGS);
 			d3d::pixel_shader = get_pixel_shader(DEFAULT_FLAGS);
 
@@ -238,6 +288,22 @@ namespace local
 				result << " | ";
 			}
 
+			if (flags & ShaderFlags_SoftParticle)
+			{
+				flags &= ~ShaderFlags_SoftParticle;
+				result << "SOFT_PARTICLE";
+				thing = true;
+				continue;
+			}
+
+			if (flags & ShaderFlags_DepthMap)
+			{
+				flags &= ~ShaderFlags_DepthMap;
+				result << "DEPTH_MAP";
+				thing = true;
+				continue;
+			}
+
 			if (flags & ShaderFlags_Fog)
 			{
 				flags &= ~ShaderFlags_Fog;
@@ -250,14 +316,6 @@ namespace local
 			{
 				flags &= ~ShaderFlags_Light;
 				result << "USE_LIGHT";
-				thing = true;
-				continue;
-			}
-
-			if (flags & ShaderFlags_Specular)
-			{
-				flags &= ~ShaderFlags_Specular;
-				result << "USE_SPECULAR";
 				thing = true;
 				continue;
 			}
@@ -438,6 +496,20 @@ namespace local
 		{
 			using namespace d3d;
 
+			if (flags & ShaderFlags_SoftParticle)
+			{
+				flags &= ~ShaderFlags_SoftParticle;
+				macros.push_back({ "SOFT_PARTICLE", "1" });
+				continue;
+			}
+
+			if (flags & ShaderFlags_DepthMap)
+			{
+				flags &= ~ShaderFlags_DepthMap;
+				macros.push_back({ "DEPTH_MAP", "1" });
+				continue;
+			}
+
 			if (flags & ShaderFlags_Texture)
 			{
 				flags &= ~ShaderFlags_Texture;
@@ -456,13 +528,6 @@ namespace local
 			{
 				flags &= ~ShaderFlags_Light;
 				macros.push_back({ "USE_LIGHT", "1" });
-				continue;
-			}
-
-			if (flags & ShaderFlags_Specular)
-			{
-				flags &= ~ShaderFlags_Specular;
-				macros.push_back({ "USE_SPECULAR", "1" });
 				continue;
 			}
 
@@ -510,6 +575,68 @@ namespace local
 		}
 
 		throw runtime_error(message.str());
+	}
+
+	static void load_quad_vs()
+	{
+		using namespace std;
+		quad_vs = nullptr;
+
+		if (!filesystem::file_exists("quad.hlsl"))
+		{
+			throw runtime_error("quad.hlsl missing");
+		}
+
+		ifstream file("quad.hlsl", ios::ate | ios::binary);
+		auto size = static_cast<size_t>(file.tellg());
+		file.seekg(0);
+		vector<uint8_t> buffer(size);
+		file.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
+		file.close();
+
+		Buffer ppShader;
+		Buffer ppErrorMsgs;
+
+		auto result = D3DXCompileShader(reinterpret_cast<LPCSTR>(buffer.data()), buffer.size(),
+										nullptr, nullptr, "vs_main", "vs_3_0", COMPILER_FLAGS, &ppShader, &ppErrorMsgs, nullptr);
+
+		if (FAILED(result))
+		{
+			d3d_exception(ppErrorMsgs, result);
+		}
+
+		d3d::device->CreateVertexShader(reinterpret_cast<const DWORD*>(ppShader->GetBufferPointer()), &quad_vs);
+	}
+
+	static void load_quad_ps()
+	{
+		using namespace std;
+		quad_ps = nullptr;
+
+		if (!filesystem::file_exists("quad.hlsl"))
+		{
+			throw runtime_error("quad.hlsl missing");
+		}
+
+		ifstream file("quad.hlsl", ios::ate | ios::binary);
+		auto size = static_cast<size_t>(file.tellg());
+		file.seekg(0);
+		vector<uint8_t> buffer(size);
+		file.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
+		file.close();
+
+		Buffer ppShader;
+		Buffer ppErrorMsgs;
+
+		auto result = D3DXCompileShader(reinterpret_cast<LPCSTR>(buffer.data()), buffer.size(),
+										nullptr, nullptr, "ps_main", "ps_3_0", COMPILER_FLAGS, &ppShader, &ppErrorMsgs, nullptr);
+
+		if (FAILED(result))
+		{
+			d3d_exception(ppErrorMsgs, result);
+		}
+
+		d3d::device->CreatePixelShader(reinterpret_cast<const DWORD*>(ppShader->GetBufferPointer()), &quad_ps);
 	}
 
 	static void check_shader_cache()
@@ -753,7 +880,11 @@ namespace local
 
 		DWORD specular;
 		d3d::device->GetRenderState(D3DRS_SPECULARENABLE, &specular);
-		d3d::set_flags(ShaderFlags_Specular, specular == TRUE);
+		if (specular == FALSE)
+		{
+			param::LightSpecular = {};
+			param::MaterialSpecular = {};
+		}
 
 		bool changes = false;
 
@@ -950,6 +1081,8 @@ namespace local
 	{
 		TARGET_DYNAMIC(Direct3D_SetProjectionMatrix)(hfov, nearPlane, farPlane);
 
+		param::DrawDistance = farPlane;
+
 		// The view matrix can also be set here if necessary.
 		param::ProjectionMatrix = _ProjectionMatrix * TransformationMatrix;
 	}
@@ -998,54 +1131,106 @@ namespace local
 #define D3D_ORIG(NAME) \
 	NAME ## _t
 
+	struct shader_guard
+	{
+		~shader_guard()
+		{
+			shader_end();
+		}
+	};
+
+	static bool no_depth = false;
+
+	template<typename T, typename... Args>
+	static HRESULT run_d3d_trampoline(const T& original, Args... args)
+	{
+		HRESULT result;
+
+		shader_guard guard;
+		const auto old_flags = shader_flags;
+
+		DWORD ZWRITEENABLE;
+		d3d::device->GetRenderState(D3DRS_ZWRITEENABLE, &ZWRITEENABLE);
+
+		if (!ZWRITEENABLE || no_depth)
+		{
+			shader_start();
+			return original(args...);
+		}
+
+		// first, write to the depth map
+
+		shader_flags |= ShaderFlags_DepthMap;
+		shader_start();
+
+		d3d::device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+		Surface depth_surface;
+		depth_texture->GetSurfaceLevel(0, &depth_surface);
+		d3d::device->SetRenderTarget(0, depth_surface);
+
+		result = original(args...);
+
+		d3d::device->SetRenderTarget(0, original_backbuffer);
+		d3d::device->SetRenderState(D3DRS_ZWRITEENABLE, ZWRITEENABLE);
+		
+		if (FAILED(result))
+		{
+			return result;
+		}
+
+		// next, write to the backbuffer
+
+		shader_flags = old_flags;
+
+		shader_start();
+		result = original(args...);
+		return result;
+	}
+
 	static HRESULT __stdcall DrawPrimitive_r(IDirect3DDevice9* _this,
-		D3DPRIMITIVETYPE PrimitiveType,
-		UINT StartVertex,
-		UINT PrimitiveCount)
+	                                         D3DPRIMITIVETYPE PrimitiveType,
+	                                         UINT StartVertex,
+	                                         UINT PrimitiveCount)
 	{
-		shader_start();
-		auto result = D3D_ORIG(DrawPrimitive)(_this, PrimitiveType, StartVertex, PrimitiveCount);
-		shader_end();
-		return result;
+		return run_d3d_trampoline(D3D_ORIG(DrawPrimitive), _this, PrimitiveType, StartVertex, PrimitiveCount);
 	}
+
 	static HRESULT __stdcall DrawIndexedPrimitive_r(IDirect3DDevice9* _this,
-		D3DPRIMITIVETYPE PrimitiveType,
-		INT BaseVertexIndex,
-		UINT MinVertexIndex,
-		UINT NumVertices,
-		UINT startIndex,
-		UINT primCount)
+	                                                D3DPRIMITIVETYPE PrimitiveType,
+	                                                INT BaseVertexIndex,
+	                                                UINT MinVertexIndex,
+	                                                UINT NumVertices,
+	                                                UINT startIndex,
+	                                                UINT primCount)
 	{
-		shader_start();
-		auto result = D3D_ORIG(DrawIndexedPrimitive)(_this, PrimitiveType, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
-		shader_end();
-		return result;
+		return run_d3d_trampoline(D3D_ORIG(DrawIndexedPrimitive),
+		                          _this, PrimitiveType, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
 	}
+
 	static HRESULT __stdcall DrawPrimitiveUP_r(IDirect3DDevice9* _this,
-		D3DPRIMITIVETYPE PrimitiveType,
-		UINT PrimitiveCount,
-		CONST void* pVertexStreamZeroData,
-		UINT VertexStreamZeroStride)
+	                                           D3DPRIMITIVETYPE PrimitiveType,
+	                                           UINT PrimitiveCount,
+	                                           CONST void* pVertexStreamZeroData,
+	                                           UINT VertexStreamZeroStride)
 	{
-		shader_start();
-		auto result = D3D_ORIG(DrawPrimitiveUP)(_this, PrimitiveType, PrimitiveCount, pVertexStreamZeroData, VertexStreamZeroStride);
-		shader_end();
-		return result;
+		return run_d3d_trampoline(D3D_ORIG(DrawPrimitiveUP), _this, PrimitiveType, PrimitiveCount, pVertexStreamZeroData,
+		                          VertexStreamZeroStride);
 	}
+
 	static HRESULT __stdcall DrawIndexedPrimitiveUP_r(IDirect3DDevice9* _this,
-		D3DPRIMITIVETYPE PrimitiveType,
-		UINT MinVertexIndex,
-		UINT NumVertices,
-		UINT PrimitiveCount,
-		CONST void* pIndexData,
-		D3DFORMAT IndexDataFormat,
-		CONST void* pVertexStreamZeroData,
-		UINT VertexStreamZeroStride)
+	                                                  D3DPRIMITIVETYPE PrimitiveType,
+	                                                  UINT MinVertexIndex,
+	                                                  UINT NumVertices,
+	                                                  UINT PrimitiveCount,
+	                                                  CONST void* pIndexData,
+	                                                  D3DFORMAT IndexDataFormat,
+	                                                  CONST void* pVertexStreamZeroData,
+	                                                  UINT VertexStreamZeroStride)
 	{
-		shader_start();
-		auto result = D3D_ORIG(DrawIndexedPrimitiveUP)(_this, PrimitiveType, MinVertexIndex, NumVertices, PrimitiveCount, pIndexData, IndexDataFormat, pVertexStreamZeroData, VertexStreamZeroStride);
-		shader_end();
-		return result;
+		return run_d3d_trampoline(D3D_ORIG(DrawIndexedPrimitiveUP), _this, PrimitiveType, MinVertexIndex, NumVertices,
+		                          PrimitiveCount,
+		                          pIndexData, IndexDataFormat, pVertexStreamZeroData,
+		                          VertexStreamZeroStride);
 	}
 
 	// ReSharper disable once CppDeclaratorNeverUsed
@@ -1141,6 +1326,194 @@ namespace d3d
 		return vertex_shader != nullptr && pixel_shader != nullptr;
 	}
 
+	struct QuadVertex
+	{
+		static const UINT Format = D3DFVF_XYZRHW | D3DFVF_TEX1;
+		D3DXVECTOR4 Position;
+		D3DXVECTOR2 TexCoord;
+	};
+
+	struct depth_guard
+	{
+		depth_guard()
+		{
+			local::no_depth = true;
+		}
+
+		~depth_guard()
+		{
+			local::no_depth = false;
+		}
+	};
+
+	static void draw_quad()
+	{
+		depth_guard guard;
+
+		const auto& present = local::PresentParameters;
+		QuadVertex quad[4] {};
+
+		const auto fWidth5 = present.BackBufferWidth - 0.5f;
+		const auto fHeight5 = present.BackBufferHeight - 0.5f;
+		const float left = 0.0f;
+		const float top = 0.0f;
+		const float right = 1.0f;
+		const float bottom = 1.0f;
+
+		param::ViewPort = { fWidth5, fHeight5, 0.0f, 0.0f };
+		param::ViewPort.commit_now(device);
+
+		quad[0].Position = D3DXVECTOR4(-0.5f, -0.5f, 0.5f, 1.0f);
+		quad[0].TexCoord = D3DXVECTOR2(left, top);
+
+		quad[1].Position = D3DXVECTOR4(fWidth5, -0.5f, 0.5f, 1.0f);
+		quad[1].TexCoord = D3DXVECTOR2(right, top);
+
+		quad[2].Position = D3DXVECTOR4(-0.5f, fHeight5, 0.5f, 1.0f);
+		quad[2].TexCoord = D3DXVECTOR2(left, bottom);
+
+		quad[3].Position = D3DXVECTOR4(fWidth5, fHeight5, 0.5f, 1.0f);
+		quad[3].TexCoord = D3DXVECTOR2(right, bottom);
+
+		DWORD ZENABLE, ALPHABLENDENABLE, BLENDOP, SRCBLEND, DESTBLEND;
+
+		device->GetRenderState(D3DRS_ZENABLE, &ZENABLE);
+		device->GetRenderState(D3DRS_ALPHABLENDENABLE, &ALPHABLENDENABLE);
+		device->GetRenderState(D3DRS_BLENDOP, &BLENDOP);
+		device->GetRenderState(D3DRS_SRCBLEND, &SRCBLEND);
+		device->GetRenderState(D3DRS_DESTBLEND, &DESTBLEND);
+
+		device->SetRenderState(D3DRS_ZENABLE, FALSE);
+		device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD); // this is probably what it already is
+		device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+		device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_DESTALPHA);
+
+		{
+			VertexShader vs;
+			PixelShader ps;
+			device->GetVertexShader(&vs);
+			device->GetPixelShader(&ps);
+
+			device->SetFVF(QuadVertex::Format);
+
+			device->SetVertexShader(local::quad_vs);
+			device->SetPixelShader(local::quad_ps);
+
+			device->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, &quad, sizeof(QuadVertex));
+
+			device->SetVertexShader(vs);
+			device->SetPixelShader(ps);
+		}
+
+		device->SetRenderState(D3DRS_ZENABLE, ZENABLE);
+		device->SetRenderState(D3DRS_ALPHABLENDENABLE, ALPHABLENDENABLE);
+		device->SetRenderState(D3DRS_BLENDOP, BLENDOP);
+		device->SetRenderState(D3DRS_SRCBLEND, SRCBLEND);
+		device->SetRenderState(D3DRS_DESTBLEND, DESTBLEND);
+
+		param::ViewPort = D3DXVECTOR4(static_cast<float>(HorizontalResolution), static_cast<float>(VerticalResolution), 0.0f, 0.0f);
+		param::ViewPort.commit_now(device);
+	}
+
+	void __cdecl njDrawSprite3D_DrawNow_hijack(NJS_SPRITE *sp, int n, NJD_SPRITE attr)
+	{
+		depth_guard guard;
+
+		using namespace d3d;
+		HRESULT error = 0;
+
+		const auto inst = reinterpret_cast<QueuedModelSprite*>(reinterpret_cast<int>(sp) - 0x30);
+		const auto node = reinterpret_cast<QueuedModelNode*>(inst);
+
+		if (inst->SpriteFlags & NJD_SPRITE_SCALE)
+		{
+			param::DepthOverride = abs(node->Depth);
+		}
+
+		// TODO: not this; calculate it or something
+		param::ParticleScale = globals::particle_scale;
+
+		{
+			Surface particle_surface;
+			error = local::particle_buffer->GetSurfaceLevel(0, &particle_surface);
+			error = device->SetRenderTarget(0, particle_surface);
+		}
+
+		const auto shader_flags_ = local::shader_flags;
+		local::shader_flags = ShaderFlags_SoftParticle | ShaderFlags_Texture;
+
+		if (attr & NJD_SPRITE_SCALE)
+		{
+			D3DXMatrixIdentity(&local::WorldMatrix);
+			local::Direct3D_SetWorldTransform_r();
+		}
+		else
+		{
+			njGetMatrix(&local::WorldMatrix[0]);
+			local::Direct3D_SetWorldTransform_r();
+		}
+
+		do_effect = true;
+		local::begin();
+		{
+			error = device->SetTexture(1, local::depth_texture);
+
+			local::shader_start();
+			{
+				njDrawSprite3D_DrawNow(sp, n, attr);
+			}
+			local::shader_end();
+
+			error = device->SetTexture(1, nullptr);
+		}
+		local::end();
+
+		local::shader_flags = shader_flags_;
+		param::DepthOverride = 0.0f;
+		error = device->SetRenderTarget(0, local::original_backbuffer);
+	}
+
+	static Trampoline* Direct3D_Present_t = nullptr;
+	void __cdecl Direct3D_Present_r()
+	{
+		depth_guard guard;
+
+		const bool save = ControllerPointers[0] && !!(ControllerPointers[0]->PressedButtons & Buttons_Right);
+		HRESULT error = 0;
+
+		if (save)
+		{
+			error = D3DXSaveTextureToFileA("particle_buffer.png", D3DXIFF_PNG, local::particle_buffer, nullptr);
+		}
+
+		{
+			BaseTexture t0;
+			error = device->GetTexture(0, &t0);
+			error = device->SetTexture(0, local::particle_buffer);
+			draw_quad();
+			error = device->SetTexture(0, t0);
+		}
+
+		const auto target = TARGET_DYNAMIC(Direct3D_Present);
+		target();
+
+		{
+			Surface particle_surface;
+			error = local::particle_buffer->GetSurfaceLevel(0, &particle_surface);
+			error = device->SetRenderTarget(0, particle_surface);
+			error = device->Clear(0, nullptr, D3DCLEAR_TARGET, 0, 0.0f, 0);
+		}
+
+		{
+			Surface depth_surface;
+			error = local::depth_texture->GetSurfaceLevel(0, &depth_surface);
+			error = device->SetRenderTarget(0, depth_surface);
+			error = device->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 255, 0, 0), 0.0f, 0);
+			error = device->SetRenderTarget(0, local::original_backbuffer);
+		}
+	}
+
 	void init_trampolines()
 	{
 		using namespace local;
@@ -1166,6 +1539,9 @@ namespace d3d
 		// call dword ptr [ecx+94h] (device->SetTransform)
 		WriteData<8>(reinterpret_cast<void*>(0x00403234), 0x90i8);
 		WriteCall(reinterpret_cast<void*>(0x00403236), SetTransformHijack);
+
+		WriteCall(reinterpret_cast<void*>(0x00408B1F), njDrawSprite3D_DrawNow_hijack);
+		Direct3D_Present_t = new Trampoline(0x0078BA30, 0x0078BA35, Direct3D_Present_r);
 	}
 }
 

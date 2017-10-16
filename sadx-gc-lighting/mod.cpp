@@ -175,6 +175,7 @@ extern "C"
 	EXPORT void __cdecl OnFrame()
 	{
 		const auto pad = ControllerPointers[0];
+
 		if (pad)
 		{
 			const auto pressed = pad->PressedButtons;
@@ -182,7 +183,18 @@ extern "C"
 			{
 				d3d::load_shader();
 			}
+
+			if (pressed & Buttons_Up)
+			{
+				globals::particle_scale += 0.5f;
+			}
+			else if (pressed & Buttons_Down)
+			{
+				globals::particle_scale -= 0.5f;
+			}
 		}
+
+		DisplayDebugStringFormatted(NJM_LOCATION(10, 10), "PARTICLE SCALE: %f", globals::particle_scale);
 	}
 #endif
 }

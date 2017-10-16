@@ -8,4 +8,5 @@ namespace globals
 	std::string system_path;
 	std::string cache_path;
 	std::string shader_path;
+	float particle_scale = 20.0f;
 }

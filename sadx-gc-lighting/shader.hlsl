@@ -13,6 +13,7 @@ struct PS_IN
 	float2 tex         : TEXCOORD0;
 	float3 worldNormal : TEXCOORD1;
 	float3 halfVector  : TEXCOORD2;
+	float2 depth       : TEXCOORD3;
 	float  fogDist     : FOG;
 };
 
@@ -43,6 +44,7 @@ static const float AlphaRef = 16.0f / 255.0f;
 
 // Diffuse texture
 Texture2D BaseTexture : register(t0);
+Texture2D DepthTexture : register(t1);
 
 float4x4 WorldMatrix : register(c0);
 float4x4 wvMatrix : register(c4);
@@ -78,10 +80,33 @@ float4 LightDiffuse : register(c41);
 float4 LightSpecular : register(c42);
 float4 LightAmbient : register(c43);
 
+float ParticleScale : register(c44);
+float DepthOverride : register(c45);
+float DrawDistance : register(c46);
+float2 ViewPort : register(c47);
+
 // Samplers
 SamplerState baseSampler : register(s0) = sampler_state
 {
 	Texture = BaseTexture;
+};
+
+#define DEFAULT_SAMPLER \
+	MinFilter = Point;\
+	MagFilter = Point;\
+	AddressU  = Clamp;\
+	AddressV  = Clamp;\
+	ColorOp   = Modulate;\
+	ColorArg1 = Texture;\
+	ColorArg2 = Current;\
+	AlphaOp   = SelectArg1;\
+	AlphaArg1 = Texture;\
+	AlphaArg2 = Current
+
+SamplerState depthSampler : register(s1) = sampler_state
+{
+	Texture = DepthTexture;
+	DEFAULT_SAMPLER;
 };
 
 // Helpers
@@ -140,6 +165,7 @@ PS_IN vs_main(VS_IN input)
 	output.position = mul(float4(input.position, 1), wvMatrix);
 	output.fogDist = output.position.z;
 	output.position = mul(output.position, ProjectionMatrix);
+	output.depth = output.position.zw;
 
 #if defined(USE_TEXTURE) && defined(USE_ENVMAP)
 	output.tex = (float2)mul(float4(input.normal, 1), wvMatrixInvT);
@@ -157,7 +183,7 @@ PS_IN vs_main(VS_IN input)
 	return output;
 }
 
-float4 ps_main(PS_IN input) : COLOR
+float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 {
 	float4 result;
 
@@ -208,6 +234,16 @@ float4 ps_main(PS_IN input) : COLOR
 
 #ifdef USE_ALPHA
 	clip(result.a < AlphaRef ? -1 : 1);
+#endif
+
+#if defined(DEPTH_MAP)
+	return float4(input.depth.x + DepthOverride, 0, 0, 1);
+#elif defined(SOFT_PARTICLE)
+	float zscene = tex2D(depthSampler, vpos / ViewPort).r;
+	float zparticle = input.depth.x + DepthOverride;
+
+	float D = saturate((zscene - zparticle) * ParticleScale);
+	result.a *= D;
 #endif
 
 #ifdef USE_FOG

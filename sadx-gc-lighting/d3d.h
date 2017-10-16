@@ -9,14 +9,15 @@
 
 enum ShaderFlags
 {
-	ShaderFlags_None     = 0,
-	ShaderFlags_Texture  = 0b1,
-	ShaderFlags_EnvMap   = 0b10,
-	ShaderFlags_Alpha    = 0b100,
-	ShaderFlags_Light    = 0b1000,
-	ShaderFlags_Specular = 0b10000,
-	ShaderFlags_Fog      = 0b100000,
-	ShaderFlags_Mask     = 0b111111,
+	ShaderFlags_None         = 0,
+	ShaderFlags_Texture      = 0b1,
+	ShaderFlags_EnvMap       = 0b10,
+	ShaderFlags_Alpha        = 0b100,
+	ShaderFlags_Light        = 0b1000,
+	ShaderFlags_Fog          = 0b10000,
+	ShaderFlags_DepthMap     = 0b100000,
+	ShaderFlags_SoftParticle = 0b1000000,
+	ShaderFlags_Mask         = 0b1111111,
 	ShaderFlags_Count
 };
 
@@ -55,6 +56,10 @@ namespace param
 	extern ShaderParameter<D3DXCOLOR> LightDiffuse;
 	extern ShaderParameter<D3DXCOLOR> LightSpecular;
 	extern ShaderParameter<D3DXCOLOR> LightAmbient;
+	extern ShaderParameter<float> ParticleScale;
+	extern ShaderParameter<float> DepthOverride;
+	extern ShaderParameter<float> DrawDistance;
+	extern ShaderParameter<D3DXVECTOR4> ViewPort; // HACK: pretend it's vector2
 }
 
 // Same as in the mod loader except with d3d8to9 types.
