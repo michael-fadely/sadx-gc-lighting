@@ -1382,7 +1382,7 @@ namespace d3d
 		device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
 		device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD); // this is probably what it already is
 		device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-		device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+		device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 
 		{
 			VertexShader vs;
@@ -1475,21 +1475,21 @@ namespace d3d
 				DWORD FVF;
 				device->GetFVF(&FVF);
 
-				DWORD ZENABLE, ZWRITEENABLE, ALPHABLENDENABLE, BLENDOP, SRCBLEND, DESTBLEND;
+				DWORD ZENABLE, ZWRITEENABLE, ALPHABLENDENABLE/*, BLENDOP, SRCBLEND, DESTBLEND*/;
 
 				device->GetRenderState(D3DRS_ZENABLE, &ZENABLE);
 				device->GetRenderState(D3DRS_ZWRITEENABLE, &ZWRITEENABLE);
 				device->GetRenderState(D3DRS_ALPHABLENDENABLE, &ALPHABLENDENABLE);
-				device->GetRenderState(D3DRS_BLENDOP, &BLENDOP);
-				device->GetRenderState(D3DRS_SRCBLEND, &SRCBLEND);
-				device->GetRenderState(D3DRS_DESTBLEND, &DESTBLEND);
+				//device->GetRenderState(D3DRS_BLENDOP, &BLENDOP);
+				//device->GetRenderState(D3DRS_SRCBLEND, &SRCBLEND);
+				//device->GetRenderState(D3DRS_DESTBLEND, &DESTBLEND);
 
 				device->SetRenderState(D3DRS_ZENABLE, TRUE);
 				device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
 				device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
-				device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD); // this is probably what it already is
-				device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-				device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+				//device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD); // this is probably what it already is
+				//device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+				//device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 
 				device->SetFVF(ParticleVertex::Format);
 				device->SetStreamSource(0, particle_quad, 0, sizeof(ParticleVertex));
@@ -1498,9 +1498,9 @@ namespace d3d
 				device->SetRenderState(D3DRS_ZENABLE, ZENABLE);
 				device->SetRenderState(D3DRS_ZWRITEENABLE, ZWRITEENABLE);
 				device->SetRenderState(D3DRS_ALPHABLENDENABLE, ALPHABLENDENABLE);
-				device->SetRenderState(D3DRS_BLENDOP, BLENDOP);
-				device->SetRenderState(D3DRS_SRCBLEND, SRCBLEND);
-				device->SetRenderState(D3DRS_DESTBLEND, DESTBLEND);
+				//device->SetRenderState(D3DRS_BLENDOP, BLENDOP);
+				//device->SetRenderState(D3DRS_SRCBLEND, SRCBLEND);
+				//device->SetRenderState(D3DRS_DESTBLEND, DESTBLEND);
 
 				// restore original vbuffer
 				device->SetStreamSource(0, stream, offset, stride);

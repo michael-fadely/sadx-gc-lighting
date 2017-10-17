@@ -259,6 +259,12 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 		discard;
 	}
 
+	// TODO: render straight to backbuffer, remove this
+	if (result.a == 1/* && l < 0.0039215686274509803921568627451f*/)
+	{
+		result.a = length(result.rgb);
+	}
+
 	float depthFade = saturate(depthDiff /* / g_fFadeDistance */);
 	return float4(result.rgb, result.a * depthFade);
 
