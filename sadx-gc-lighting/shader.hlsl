@@ -239,11 +239,11 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 	return float4(input.fogDist, 0, 0, 1);
 #elif defined(SOFT_PARTICLE)
 
-	float2 coord = vpos / ViewPort;
+	float2 coord = vpos / (ViewPort - 0.5);
 
 	//float particleDepth = input.depth.x / input.depth.y;
 	float particleDepth = input.fogDist;
-	float depthSample = tex2D(depthSampler, vpos / ViewPort).r;
+	float depthSample = tex2D(depthSampler, coord).r;
 
 #if 0
 	float4 depthViewSample = mul(-ProjectionMatrix, float4(coord, depthSample, 1));
@@ -266,7 +266,7 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 	}
 
 	float depthFade = saturate(depthDiff /* / g_fFadeDistance */);
-	return float4(result.rgb, result.a * depthFade);
+	result.a *= depthFade;
 
 #else
 	// debug depth output
