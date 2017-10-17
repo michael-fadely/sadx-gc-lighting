@@ -231,7 +231,7 @@ namespace local
 			}
 
 			if (FAILED(d3d::device->CreateTexture(HorizontalResolution, VerticalResolution, 1,
-					D3DUSAGE_RENDERTARGET, format, D3DPOOL_DEFAULT, &particle_buffer, nullptr)))
+					D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &particle_buffer, nullptr)))
 			{
 				throw std::runtime_error("failed to create particle target");
 			}
@@ -878,14 +878,6 @@ namespace local
 			param::CameraPosition = *reinterpret_cast<D3DXVECTOR3*>(&Camera_Data1->Position);
 		}
 
-		DWORD specular;
-		d3d::device->GetRenderState(D3DRS_SPECULARENABLE, &specular);
-		if (specular == FALSE)
-		{
-			param::LightSpecular = {};
-			param::MaterialSpecular = {};
-		}
-
 		bool changes = false;
 
 		// The value here is copied so that UseBlend can be safely removed
@@ -1116,14 +1108,17 @@ namespace local
 			auto& sl = CurrentStageLights[0];
 			
 			param::LightDiffuse = D3DXCOLOR(sl.diffuse[0], sl.diffuse[1], sl.diffuse[2], 1.0f);
-			param::LightSpecular = D3DXCOLOR(sl.specular, sl.specular, sl.specular, 0.0f);
+			//param::LightSpecular = D3DXCOLOR(sl.specular, sl.specular, sl.specular, 0.0f);
 			param::LightAmbient = D3DXCOLOR(sl.ambient[0], sl.ambient[1], sl.ambient[2], 0.0f);
+
+			param::LightSpecular = {};
+			param::MaterialSpecular = {};
 		}
 		else
 		{
 			param::LightDiffuse = light.Diffuse;
-			param::LightSpecular = light.Specular;
 			param::LightAmbient = light.Ambient;
+			param::LightSpecular = light.Specular;
 		}
 	}
 
@@ -1346,7 +1341,7 @@ namespace d3d
 		}
 	};
 
-	static void draw_quad()
+	static void draw_fullscreen_quad()
 	{
 		depth_guard guard;
 
@@ -1387,7 +1382,7 @@ namespace d3d
 		device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
 		device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD); // this is probably what it already is
 		device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-		device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_DESTALPHA);
+		device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
 
 		{
 			VertexShader vs;
@@ -1416,8 +1411,136 @@ namespace d3d
 		param::ViewPort.commit_now(device);
 	}
 
+	static IDirect3DVertexBuffer9* particle_quad = nullptr;
+
+	struct ParticleVertex
+	{
+		static const UINT Format = D3DFVF_XYZ | D3DFVF_TEX1;
+		D3DXVECTOR3 Position;
+		D3DXVECTOR2 TexCoord;
+	};
+
+	static void draw_particle(NJS_VECTOR* position, float size)
+	{
+		depth_guard guard;
+
+		if (particle_quad == nullptr)
+		{
+			device->CreateVertexBuffer(4 * sizeof(ParticleVertex), 0, ParticleVertex::Format, D3DPOOL_MANAGED, &particle_quad, nullptr);
+
+			void* ppbData;
+			particle_quad->Lock(0, 4 * sizeof(ParticleVertex), &ppbData, D3DLOCK_DISCARD);
+
+			auto quad = reinterpret_cast<ParticleVertex*>(ppbData);
+
+			// top left
+			quad[0].Position = D3DXVECTOR3(-0.5f, -0.5f, 0.0f);
+			quad[0].TexCoord = D3DXVECTOR2(0.0f, 0.0f);
+
+			// top right
+			quad[1].Position = D3DXVECTOR3(0.5f, -0.5f, 0.0f);
+			quad[1].TexCoord = D3DXVECTOR2(1.0f, 0.0f);
+
+			// bottom left
+			quad[2].Position = D3DXVECTOR3(-0.5f, 0.5f, 0.0f);
+			quad[2].TexCoord = D3DXVECTOR2(0.0f, 1.0f);
+
+			// bottom right
+			quad[3].Position = D3DXVECTOR3(0.5f, 0.5f, 0.0f);
+			quad[3].TexCoord = D3DXVECTOR2(1.0f, 1.0f);
+
+			particle_quad->Unlock();
+		}
+
+		param::ParticleScale = globals::particle_scale * size;
+
+		njPushMatrix(&local::WorldMatrix[0]);
+		{
+			njPushMatrix(nullptr);
+			{
+				njUnitMatrix(nullptr);
+				njTranslateEx(position);
+				njRotateEx(reinterpret_cast<Angle*>(&Camera_Data1->Rotation), 1);
+				njScale(nullptr, size, size, size);
+
+				njGetMatrix(&local::WorldMatrix[0]);
+				local::Direct3D_SetWorldTransform_r();
+
+				// save original vbuffer
+				IDirect3DVertexBuffer9* stream;
+				UINT offset, stride;
+				device->GetStreamSource(0, &stream, &offset, &stride);
+
+				// store original FVF
+				DWORD FVF;
+				device->GetFVF(&FVF);
+
+				DWORD ZENABLE, ZWRITEENABLE, ALPHABLENDENABLE, BLENDOP, SRCBLEND, DESTBLEND;
+
+				device->GetRenderState(D3DRS_ZENABLE, &ZENABLE);
+				device->GetRenderState(D3DRS_ZWRITEENABLE, &ZWRITEENABLE);
+				device->GetRenderState(D3DRS_ALPHABLENDENABLE, &ALPHABLENDENABLE);
+				device->GetRenderState(D3DRS_BLENDOP, &BLENDOP);
+				device->GetRenderState(D3DRS_SRCBLEND, &SRCBLEND);
+				device->GetRenderState(D3DRS_DESTBLEND, &DESTBLEND);
+
+				device->SetRenderState(D3DRS_ZENABLE, TRUE);
+				device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+				device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+				device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD); // this is probably what it already is
+				device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+				device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+
+				device->SetFVF(ParticleVertex::Format);
+				device->SetStreamSource(0, particle_quad, 0, sizeof(ParticleVertex));
+				device->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+
+				device->SetRenderState(D3DRS_ZENABLE, ZENABLE);
+				device->SetRenderState(D3DRS_ZWRITEENABLE, ZWRITEENABLE);
+				device->SetRenderState(D3DRS_ALPHABLENDENABLE, ALPHABLENDENABLE);
+				device->SetRenderState(D3DRS_BLENDOP, BLENDOP);
+				device->SetRenderState(D3DRS_SRCBLEND, SRCBLEND);
+				device->SetRenderState(D3DRS_DESTBLEND, DESTBLEND);
+
+				// restore original vbuffer
+				device->SetStreamSource(0, stream, offset, stride);
+				// restore original FVF
+				device->SetFVF(FVF);
+
+				if (stream)
+				{
+					stream->Release();
+				}
+			}
+			njPopMatrix(1);
+
+			njGetMatrix(&local::WorldMatrix[0]);
+			local::Direct3D_SetWorldTransform_r();
+		}
+		njPopMatrix(1);
+	}
+
 	void __cdecl njDrawSprite3D_DrawNow_hijack(NJS_SPRITE *sp, int n, NJD_SPRITE attr)
 	{
+		if (sp)
+		{
+			const auto tlist = sp->tlist;
+			if (tlist)
+			{
+				const auto tanim = &sp->tanim[n];
+				Direct3D_SetTexList(tlist);
+				njSetTextureNum_(tanim->texid);
+			}
+			else
+			{
+				return;
+			}
+		}
+		else
+		{
+			return;
+		}
+
 		depth_guard guard;
 
 		using namespace d3d;
@@ -1428,11 +1551,10 @@ namespace d3d
 
 		if (inst->SpriteFlags & NJD_SPRITE_SCALE)
 		{
-			param::DepthOverride = abs(node->Depth);
+			param::DepthOverride = node->Depth;
 		}
 
-		// TODO: not this; calculate it or something
-		param::ParticleScale = globals::particle_scale;
+		const float size = max(sp->tanim[0].sx, sp->tanim[0].sy) * max(sp->sx, sp->sy);
 
 		{
 			Surface particle_surface;
@@ -1443,7 +1565,7 @@ namespace d3d
 		const auto shader_flags_ = local::shader_flags;
 		local::shader_flags = ShaderFlags_SoftParticle | ShaderFlags_Texture;
 
-		if (attr & NJD_SPRITE_SCALE)
+		/*if (attr & NJD_SPRITE_SCALE)
 		{
 			D3DXMatrixIdentity(&local::WorldMatrix);
 			local::Direct3D_SetWorldTransform_r();
@@ -1452,7 +1574,7 @@ namespace d3d
 		{
 			njGetMatrix(&local::WorldMatrix[0]);
 			local::Direct3D_SetWorldTransform_r();
-		}
+		}*/
 
 		do_effect = true;
 		local::begin();
@@ -1461,7 +1583,8 @@ namespace d3d
 
 			local::shader_start();
 			{
-				njDrawSprite3D_DrawNow(sp, n, attr);
+				//njDrawSprite3D_DrawNow(sp, n, attr);
+				draw_particle(&sp->p, size);
 			}
 			local::shader_end();
 
@@ -1491,7 +1614,7 @@ namespace d3d
 			BaseTexture t0;
 			error = device->GetTexture(0, &t0);
 			error = device->SetTexture(0, local::particle_buffer);
-			draw_quad();
+			draw_fullscreen_quad();
 			error = device->SetTexture(0, t0);
 		}
 
@@ -1502,7 +1625,7 @@ namespace d3d
 			Surface particle_surface;
 			error = local::particle_buffer->GetSurfaceLevel(0, &particle_surface);
 			error = device->SetRenderTarget(0, particle_surface);
-			error = device->Clear(0, nullptr, D3DCLEAR_TARGET, 0, 0.0f, 0);
+			error = device->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0) , 0.0f, 0);
 		}
 
 		{

@@ -192,6 +192,8 @@ extern "C"
 			{
 				globals::particle_scale -= 0.5f;
 			}
+
+			globals::particle_scale = max(1.0f, globals::particle_scale);
 		}
 
 		DisplayDebugStringFormatted(NJM_LOCATION(10, 10), "PARTICLE SCALE: %f", globals::particle_scale);

@@ -206,21 +206,19 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 	// everything else to ensure its vibrancy.
 	diffuse *= input.diffuse;
 
-	#ifdef USE_SPECULAR
-	{
-		float3 normal = input.worldNormal;
+	float3 normal = input.worldNormal;
 
-	#ifdef USE_SMOOTH_LIGHTING
-		normal = normalize(normal);
-	#endif
+#ifdef USE_SMOOTH_LIGHTING
+	normal = normalize(normal);
+#endif
 
-		// funny joke
-		float d2 = dot(normal, input.halfVector);
+	// funny joke
+	float d2 = dot(normal, input.halfVector);
 
-		// TODO: fix material power of 0 (for real though)
-		specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0.0001f, d2), max(1.0, MaterialPower)));
-	}
-	#endif
+	// TODO: fix material power of 0 (for real though)
+	specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0.0001f, d2), max(1.0, MaterialPower)));
+#elif defined(SOFT_PARTICLE)
+	diffuse = float4(1, 1, 1, 1);
 #else
 	diffuse = input.diffuse;
 #endif
@@ -237,13 +235,37 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 #endif
 
 #if defined(DEPTH_MAP)
-	return float4(input.depth.x + DepthOverride, 0, 0, 1);
+	//return float4(input.depth.x / input.depth.y, 0, 0, 1);
+	return float4(input.fogDist, 0, 0, 1);
 #elif defined(SOFT_PARTICLE)
-	float zscene = tex2D(depthSampler, vpos / ViewPort).r;
-	float zparticle = input.depth.x + DepthOverride;
 
-	float D = saturate((zscene - zparticle) * ParticleScale);
-	result.a *= D;
+	float2 coord = vpos / ViewPort;
+
+	//float particleDepth = input.depth.x / input.depth.y;
+	float particleDepth = input.fogDist;
+	float depthSample = tex2D(depthSampler, vpos / ViewPort).r;
+
+#if 0
+	float4 depthViewSample = mul(-ProjectionMatrix, float4(coord, depthSample, 1));
+	float4 depthViewParticle = mul(-ProjectionMatrix, float4(coord, particleDepth, 1));
+
+	float depthDiff = (depthViewSample.z / depthViewSample.w) - (depthViewParticle.z / depthViewParticle.w);
+#else
+	float depthDiff = (depthSample - particleDepth) / ParticleScale;
+#endif
+	
+	if (depthDiff < 0)
+	{
+		discard;
+	}
+
+	float depthFade = saturate(depthDiff /* / g_fFadeDistance */);
+	return float4(result.rgb, result.a * depthFade);
+
+#else
+	// debug depth output
+	//float f = (input.fogDist / DrawDistance);
+	//return float4(f, f, f, 1);
 #endif
 
 #ifdef USE_FOG
