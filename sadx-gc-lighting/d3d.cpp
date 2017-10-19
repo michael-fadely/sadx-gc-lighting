@@ -151,10 +151,7 @@ namespace local
 	static std::unordered_map<ShaderFlags, PixelShader> pixel_shaders;
 
 	static Texture depth_texture = nullptr;
-	static Texture particle_buffer = nullptr;
 	static Surface original_backbuffer = nullptr;
-	static VertexShader quad_vs = nullptr;
-	static PixelShader quad_ps = nullptr;
 
 	static bool initialized = false;
 	static Uint32 drawing = 0;
@@ -183,11 +180,7 @@ namespace local
 
 	static void free_shaders()
 	{
-		quad_vs         = nullptr;
-		quad_ps         = nullptr;
-		depth_texture   = nullptr;
-		particle_buffer = nullptr;
-		d3d::device->SetRenderTarget(0, original_backbuffer);
+		depth_texture = nullptr;
 		d3d::device->SetTexture(1, nullptr);
 		original_backbuffer = nullptr;
 
@@ -206,34 +199,20 @@ namespace local
 	static VertexShader get_vertex_shader(Uint32 flags);
 	static PixelShader get_pixel_shader(Uint32 flags);
 
-	static void load_quad_vs();
-	static void load_quad_ps();
-
 	static void create_shaders()
 	{
 		try
 		{
-			load_quad_vs();
-			load_quad_ps();
-
 			param::ViewPort = {
 				static_cast<float>(HorizontalResolution),
 				static_cast<float>(VerticalResolution),
 				0.0f, 0.0f
 			};
 
-			auto format = PresentParameters.BackBufferFormat;
-
 			if (FAILED(d3d::device->CreateTexture(HorizontalResolution, VerticalResolution, 1,
 					D3DUSAGE_RENDERTARGET, D3DFMT_R32F, D3DPOOL_DEFAULT, &depth_texture, nullptr)))
 			{
 				throw std::runtime_error("failed to create depth target");
-			}
-
-			if (FAILED(d3d::device->CreateTexture(HorizontalResolution, VerticalResolution, 1,
-					D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &particle_buffer, nullptr)))
-			{
-				throw std::runtime_error("failed to create particle target");
 			}
 
 			d3d::device->GetRenderTarget(0, &original_backbuffer);
@@ -575,68 +554,6 @@ namespace local
 		}
 
 		throw runtime_error(message.str());
-	}
-
-	static void load_quad_vs()
-	{
-		using namespace std;
-		quad_vs = nullptr;
-
-		if (!filesystem::file_exists("quad.hlsl"))
-		{
-			throw runtime_error("quad.hlsl missing");
-		}
-
-		ifstream file("quad.hlsl", ios::ate | ios::binary);
-		auto size = static_cast<size_t>(file.tellg());
-		file.seekg(0);
-		vector<uint8_t> buffer(size);
-		file.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
-		file.close();
-
-		Buffer ppShader;
-		Buffer ppErrorMsgs;
-
-		auto result = D3DXCompileShader(reinterpret_cast<LPCSTR>(buffer.data()), buffer.size(),
-										nullptr, nullptr, "vs_main", "vs_3_0", COMPILER_FLAGS, &ppShader, &ppErrorMsgs, nullptr);
-
-		if (FAILED(result))
-		{
-			d3d_exception(ppErrorMsgs, result);
-		}
-
-		d3d::device->CreateVertexShader(reinterpret_cast<const DWORD*>(ppShader->GetBufferPointer()), &quad_vs);
-	}
-
-	static void load_quad_ps()
-	{
-		using namespace std;
-		quad_ps = nullptr;
-
-		if (!filesystem::file_exists("quad.hlsl"))
-		{
-			throw runtime_error("quad.hlsl missing");
-		}
-
-		ifstream file("quad.hlsl", ios::ate | ios::binary);
-		auto size = static_cast<size_t>(file.tellg());
-		file.seekg(0);
-		vector<uint8_t> buffer(size);
-		file.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
-		file.close();
-
-		Buffer ppShader;
-		Buffer ppErrorMsgs;
-
-		auto result = D3DXCompileShader(reinterpret_cast<LPCSTR>(buffer.data()), buffer.size(),
-										nullptr, nullptr, "ps_main", "ps_3_0", COMPILER_FLAGS, &ppShader, &ppErrorMsgs, nullptr);
-
-		if (FAILED(result))
-		{
-			d3d_exception(ppErrorMsgs, result);
-		}
-
-		d3d::device->CreatePixelShader(reinterpret_cast<const DWORD*>(ppShader->GetBufferPointer()), &quad_ps);
 	}
 
 	static void check_shader_cache()
@@ -1340,7 +1257,7 @@ namespace d3d
 			local::no_depth = false;
 		}
 	};
-
+#if 0
 	static void draw_fullscreen_quad()
 	{
 		depth_guard guard;
@@ -1410,7 +1327,7 @@ namespace d3d
 		param::ViewPort = D3DXVECTOR4(static_cast<float>(HorizontalResolution), static_cast<float>(VerticalResolution), 0.0f, 0.0f);
 		param::ViewPort.commit_now(device);
 	}
-
+#endif
 	static IDirect3DVertexBuffer9* particle_quad = nullptr;
 
 	struct ParticleVertex
@@ -1556,12 +1473,6 @@ namespace d3d
 
 		const float size = max(sp->tanim[0].sx, sp->tanim[0].sy) * max(sp->sx, sp->sy);
 
-		{
-			Surface particle_surface;
-			error = local::particle_buffer->GetSurfaceLevel(0, &particle_surface);
-			error = device->SetRenderTarget(0, particle_surface);
-		}
-
 		const auto shader_flags_ = local::shader_flags;
 		local::shader_flags = ShaderFlags_SoftParticle | ShaderFlags_Texture;
 
@@ -1594,43 +1505,19 @@ namespace d3d
 
 		local::shader_flags = shader_flags_;
 		param::DepthOverride = 0.0f;
-		error = device->SetRenderTarget(0, local::original_backbuffer);
 	}
 
 	static Trampoline* Direct3D_Present_t = nullptr;
 	void __cdecl Direct3D_Present_r()
 	{
-		depth_guard guard;
-
-		const bool save = ControllerPointers[0] && !!(ControllerPointers[0]->PressedButtons & Buttons_Right);
-		HRESULT error = 0;
-
-		if (save)
-		{
-			error = D3DXSaveTextureToFileA("particle_buffer.png", D3DXIFF_PNG, local::particle_buffer, nullptr);
-		}
-
-		{
-			BaseTexture t0;
-			error = device->GetTexture(0, &t0);
-			error = device->SetTexture(0, local::particle_buffer);
-			draw_fullscreen_quad();
-			error = device->SetTexture(0, t0);
-		}
 
 		const auto target = TARGET_DYNAMIC(Direct3D_Present);
 		target();
 
 		{
-			Surface particle_surface;
-			error = local::particle_buffer->GetSurfaceLevel(0, &particle_surface);
-			error = device->SetRenderTarget(0, particle_surface);
-			error = device->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0) , 0.0f, 0);
-		}
 
-		{
 			Surface depth_surface;
-			error = local::depth_texture->GetSurfaceLevel(0, &depth_surface);
+			auto error = local::depth_texture->GetSurfaceLevel(0, &depth_surface);
 			error = device->SetRenderTarget(0, depth_surface);
 			error = device->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 255, 0, 0), 0.0f, 0);
 			error = device->SetRenderTarget(0, local::original_backbuffer);
