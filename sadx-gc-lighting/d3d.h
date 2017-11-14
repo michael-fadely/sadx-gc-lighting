@@ -40,11 +40,11 @@ namespace param
 	extern ShaderParameter<D3DXMATRIX> ProjectionMatrix;
 	extern ShaderParameter<D3DXMATRIX> wvMatrixInvT;
 	extern ShaderParameter<D3DXMATRIX> TextureTransform;
+
 	extern ShaderParameter<int> FogMode;
-	extern ShaderParameter<float> FogStart;
-	extern ShaderParameter<float> FogEnd;
-	extern ShaderParameter<float> FogDensity;
+	extern ShaderParameter<D3DXVECTOR3> FogConfig;
 	extern ShaderParameter<D3DXCOLOR> FogColor;
+
 	extern ShaderParameter<D3DXVECTOR3> LightDirection;
 	extern ShaderParameter<D3DXVECTOR3> CameraPosition;
 	extern ShaderParameter<int> DiffuseSource;

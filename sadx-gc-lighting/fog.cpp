@@ -26,39 +26,27 @@ using namespace d3d;
 static void __cdecl njDisableFog_r()
 {
 	TARGET_STATIC(njDisableFog)();
-
-	if (shaders_not_null())
-	{
-		set_flags(ShaderFlags_Fog, false);
-	}
+	set_flags(ShaderFlags_Fog, false);
 }
 
 static void __cdecl njEnableFog_r()
 {
 	TARGET_STATIC(njEnableFog)();
-
-	if (shaders_not_null())
-	{
-		param::FogMode = fog_mode;
-		set_flags(ShaderFlags_Fog, true);
-	}
+	param::FogMode = fog_mode;
+	set_flags(ShaderFlags_Fog, true);
 }
 
 static void __cdecl njSetFogColor_r(Uint32 c)
 {
 	TARGET_STATIC(njSetFogColor)(c);
-
-	if (shaders_not_null())
-	{
-		param::FogColor = D3DXCOLOR(c);
-	}
+	param::FogColor = D3DXCOLOR(c);
 }
 
 static void __cdecl njSetFogTable_r(NJS_FOG_TABLE fogtable)
 {
 	TARGET_STATIC(njSetFogTable)(fogtable);
 
-	if (!shaders_not_null())
+	if (device == nullptr)
 	{
 		return;
 	}
@@ -67,16 +55,20 @@ static void __cdecl njSetFogTable_r(NJS_FOG_TABLE fogtable)
 	param::FogMode = fog_mode;
 	set_flags(ShaderFlags_Fog, true);
 
+	D3DXVECTOR3 fog_config {};
+
 	float start, end, density;
 	device->GetRenderState(D3DRS_FOGSTART, reinterpret_cast<DWORD*>(&start));
 	device->GetRenderState(D3DRS_FOGEND, reinterpret_cast<DWORD*>(&end));
 
-	param::FogStart = start;
-	param::FogEnd = end;
+	fog_config.x = start;
+	fog_config.y = end;
 
 	if (fog_mode != D3DFOG_LINEAR)
 	{
 		device->GetRenderState(D3DRS_FOGDENSITY, reinterpret_cast<DWORD*>(&density));
-		param::FogDensity = density;
+		fog_config.z = density;
 	}
+
+	param::FogConfig = fog_config;
 }
