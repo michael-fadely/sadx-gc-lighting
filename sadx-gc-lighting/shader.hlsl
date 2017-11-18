@@ -16,16 +16,6 @@ struct PS_IN
 	float  fogDist     : FOG;
 };
 
-struct StageLight
-{
-	float3 direction;
-	float specular;
-	float multiplier;
-	float3 diffuse;
-	float3 ambient;
-	float padding[5];
-};
-
 // From FixedFuncEMU.fx
 // Copyright (c) 2005 Microsoft Corporation. All rights reserved.
 #define FOGMODE_NONE   0
@@ -129,8 +119,6 @@ float4 GetDiffuse(in float4 vcolor)
 
 	return color;
 }
-
-// Vertex shaders
 
 PS_IN vs_main(VS_IN input)
 {

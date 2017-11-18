@@ -49,9 +49,9 @@ namespace param
 	ShaderParameter<D3DXVECTOR3> CameraPosition(27, { 0.0f, 0.0f, 0.0f }, IShaderParameter::Type::vertex);
 	ShaderParameter<D3DXCOLOR>   MaterialSpecular(28, {}, IShaderParameter::Type::pixel);
 	ShaderParameter<float>       MaterialPower(29, 1.0f, IShaderParameter::Type::pixel);
-	ShaderParameter<D3DXCOLOR>   LightDiffuse(30, {},  IShaderParameter::Type::pixel);
-	ShaderParameter<D3DXCOLOR>   LightSpecular(31, {},  IShaderParameter::Type::pixel);
-	ShaderParameter<D3DXCOLOR>   LightAmbient(32, {},  IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXCOLOR>   LightDiffuse(30, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXCOLOR>   LightSpecular(31, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXCOLOR>   LightAmbient(32, {}, IShaderParameter::Type::pixel);
 
 	IShaderParameter* const parameters[] = {
 		&WorldMatrix,
