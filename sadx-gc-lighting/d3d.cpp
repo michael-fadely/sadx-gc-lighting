@@ -31,30 +31,32 @@
 
 namespace param
 {
-	ShaderParameter<D3DXMATRIX>  WorldMatrix(0, {});
-	ShaderParameter<D3DXMATRIX>  wvMatrix(4, {});
-	ShaderParameter<D3DXMATRIX>  ProjectionMatrix(8, {});
-	ShaderParameter<D3DXMATRIX>  wvMatrixInvT(12, {});
-	ShaderParameter<D3DXMATRIX>  TextureTransform(16, {});
-	ShaderParameter<int>         DiffuseSource(20, 0);
-	ShaderParameter<D3DXCOLOR>   MaterialDiffuse(21, {});
-	ShaderParameter<D3DXVECTOR3> LightDirection(26, { 0.0f, -1.0f, 0.0f });
-	ShaderParameter<D3DXVECTOR3> NormalScale(27, { 1.0f, 1.0f, 1.0f });
-	ShaderParameter<int>         FogMode(28, 0);
-	ShaderParameter<float>       FogStart(29, 0.0f);
-	ShaderParameter<float>       FogEnd(30, 0.0f);
-	ShaderParameter<float>       FogDensity(31, 0.0f);
-	ShaderParameter<D3DXCOLOR>   FogColor(32, {});
-	ShaderParameter<D3DXVECTOR3> CameraPosition(33, { 0.0f, 0.0f, 0.0f });
-	ShaderParameter<D3DXCOLOR>   MaterialSpecular(39, {});
-	ShaderParameter<float>       MaterialPower(40, 1.0f);
-	ShaderParameter<D3DXCOLOR>   LightDiffuse(41, {});
-	ShaderParameter<D3DXCOLOR>   LightSpecular(42, {});
-	ShaderParameter<D3DXCOLOR>   LightAmbient(43, {});
-	ShaderParameter<float>       ParticleScale(44, 0.0f);
-	ShaderParameter<float>       DepthOverride(45, 0.0f);
-	ShaderParameter<float>       DrawDistance(46, 0.0f);
-	ShaderParameter<D3DXVECTOR4> ViewPort(47, {});
+	ShaderParameter<D3DXMATRIX>  WorldMatrix(0, {}, IShaderParameter::Type::vertex);
+	ShaderParameter<D3DXMATRIX>  wvMatrix(4, {}, IShaderParameter::Type::vertex);
+	ShaderParameter<D3DXMATRIX>  ProjectionMatrix(8, {}, IShaderParameter::Type::vertex);
+	ShaderParameter<D3DXMATRIX>  wvMatrixInvT(12, {}, IShaderParameter::Type::vertex);
+	ShaderParameter<D3DXMATRIX>  TextureTransform(16, {}, IShaderParameter::Type::vertex);
+
+	ShaderParameter<D3DXVECTOR3> NormalScale(20, { 1.0f, 1.0f, 1.0f }, IShaderParameter::Type::vertex);
+	ShaderParameter<D3DXVECTOR3> LightDirection(21, { 0.0f, -1.0f, 0.0f }, IShaderParameter::Type::both);
+	ShaderParameter<int>         DiffuseSource(22, 0, IShaderParameter::Type::vertex);
+	ShaderParameter<D3DXCOLOR>   MaterialDiffuse(23, {}, IShaderParameter::Type::vertex);
+
+	ShaderParameter<int>         FogMode(24, 0, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXVECTOR3> FogConfig(25, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXCOLOR>   FogColor(26, {}, IShaderParameter::Type::pixel);
+
+	ShaderParameter<D3DXVECTOR3> CameraPosition(27, { 0.0f, 0.0f, 0.0f }, IShaderParameter::Type::vertex);
+	ShaderParameter<D3DXCOLOR>   MaterialSpecular(28, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<float>       MaterialPower(29, 1.0f, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXCOLOR>   LightDiffuse(30, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXCOLOR>   LightSpecular(31, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXCOLOR>   LightAmbient(32, {}, IShaderParameter::Type::pixel);
+
+	ShaderParameter<float>       ParticleScale(44, 0.0f, IShaderParameter::Type::pixel);
+	ShaderParameter<float>       DepthOverride(45, 0.0f, IShaderParameter::Type::pixel);
+	ShaderParameter<float>       DrawDistance(46, 0.0f, IShaderParameter::Type::pixel);
+	ShaderParameter<D3DXVECTOR4> ViewPort(47, {}, IShaderParameter::Type::pixel);
 
 	IShaderParameter* const parameters[] = {
 		&WorldMatrix,
@@ -62,14 +64,12 @@ namespace param
 		&ProjectionMatrix,
 		&wvMatrixInvT,
 		&TextureTransform,
+		&NormalScale,
+		&LightDirection,
 		&DiffuseSource,
 		&MaterialDiffuse,
-		&LightDirection,
-		&NormalScale,
 		&FogMode,
-		&FogStart,
-		&FogEnd,
-		&FogDensity,
+		&FogConfig,
 		&FogColor,
 		&CameraPosition,
 		&MaterialSpecular,
@@ -226,13 +226,13 @@ namespace local
 				auto flags = i;
 				local::sanitize(flags);
 
-				auto vs = (ShaderFlags)(flags & VS_FLAGS);
+				auto vs = static_cast<ShaderFlags>(flags & VS_FLAGS);
 				if (vertex_shaders.find(vs) == vertex_shaders.end())
 				{
 					get_vertex_shader(flags);
 				}
 
-				auto ps = (ShaderFlags)(flags & PS_FLAGS);
+				auto ps = static_cast<ShaderFlags>(flags & PS_FLAGS);
 				if (pixel_shaders.find(ps) == pixel_shaders.end())
 				{
 					get_pixel_shader(flags);

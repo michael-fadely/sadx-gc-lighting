@@ -17,16 +17,6 @@ struct PS_IN
 	float  fogDist     : FOG;
 };
 
-struct StageLight
-{
-	float3 direction;
-	float specular;
-	float multiplier;
-	float3 diffuse;
-	float3 ambient;
-	float padding[5];
-};
-
 // From FixedFuncEMU.fx
 // Copyright (c) 2005 Microsoft Corporation. All rights reserved.
 #define FOGMODE_NONE   0
@@ -49,8 +39,7 @@ Texture2D DepthTexture : register(t1);
 float4x4 WorldMatrix : register(c0);
 float4x4 wvMatrix : register(c4);
 float4x4 ProjectionMatrix : register(c8);
-// The inverse transpose of the world view matrix - used for environment mapping.
-float4x4 wvMatrixInvT : register(c12);
+float4x4 wvMatrixInvT     : register(c12); // Inverse transpose world view - used for environment mapping.
 
 // Used primarily for environment mapping.
 float4x4 TextureTransform : register(c16) = {
@@ -60,25 +49,22 @@ float4x4 TextureTransform : register(c16) = {
 	0.5, 0.5, 0.0, 1.0
 };
 
-uint DiffuseSource : register(c20) = (uint)D3DMCS_COLOR1;
-float4 MaterialDiffuse : register(c21) = float4(1.0f, 1.0f, 1.0f, 1.0f);
+float3 NormalScale     : register(c20) = float3(1, 1, 1);
+float3 LightDirection  : register(c21) = float3(0.0f, -1.0f, 0.0f);
+uint   DiffuseSource   : register(c22) = (uint)D3DMCS_COLOR1;
+float4 MaterialDiffuse : register(c23) = float4(1.0f, 1.0f, 1.0f, 1.0f);
 
-float3 LightDirection : register(c26) = float3(0.0f, -1.0f, 0.0f);
-float3 NormalScale : register(c27) = float3(1, 1, 1);
+// FogMode cannot be merged with FogConfig because of
+// Shader Model 3 restrictions on acceptable values.
+uint FogMode : register(c24) = (uint)FOGMODE_NONE;
+// x y and z are start, end, and density respectively
+float3 FogConfig : register(c25);
+float4 FogColor  : register(c26);
 
-uint   FogMode : register(c28) = (uint)FOGMODE_NONE;
-float  FogStart : register(c29);
-float  FogEnd : register(c30);
-float  FogDensity : register(c31);
-float4 FogColor : register(c32);
-float3 CameraPosition : register(c33);
+float3 CameraPosition : register(c27);
 
-float4 MaterialSpecular : register(c39) = float4(0.0f, 0.0f, 0.0f, 0.0f);
-float  MaterialPower : register(c40) = 1.0f;
-
-float4 LightDiffuse : register(c41);
-float4 LightSpecular : register(c42);
-float4 LightAmbient : register(c43);
+float4 MaterialSpecular : register(c28) = float4(0.0f, 0.0f, 0.0f, 0.0f);
+float  MaterialPower    : register(c29) = 1.0f;
 
 float ParticleScale : register(c44);
 float DepthOverride : register(c45);
@@ -90,6 +76,9 @@ SamplerState baseSampler : register(s0) = sampler_state
 {
 	Texture = BaseTexture;
 };
+float4 LightDiffuse  : register(c30);
+float4 LightSpecular : register(c31);
+float4 LightAmbient  : register(c32);
 
 #define DEFAULT_SAMPLER \
 	MinFilter = Point;\
@@ -111,10 +100,8 @@ SamplerState depthSampler : register(s1) = sampler_state
 
 // Helpers
 
-#ifdef USE_FOG
 // From FixedFuncEMU.fx
 // Copyright (c) 2005 Microsoft Corporation. All rights reserved.
-
 float CalcFogFactor(float d)
 {
 	float fogCoeff;
@@ -125,21 +112,20 @@ float CalcFogFactor(float d)
 			break;
 
 		case FOGMODE_EXP:
-			fogCoeff = 1.0 / pow(E, d * FogDensity);
+			fogCoeff = 1.0 / pow(E, d * FogConfig.z);
 			break;
 
 		case FOGMODE_EXP2:
-			fogCoeff = 1.0 / pow(E, d * d * FogDensity * FogDensity);
+			fogCoeff = 1.0 / pow(E, d * d * FogConfig.z * FogConfig.z);
 			break;
 
 		case FOGMODE_LINEAR:
-			fogCoeff = (FogEnd - d) / (FogEnd - FogStart);
+			fogCoeff = (FogConfig.y - d) / (FogConfig.y - FogConfig.x);
 			break;
 	}
 
 	return clamp(fogCoeff, 0, 1);
 }
-#endif
 
 float4 GetDiffuse(in float4 vcolor)
 {
@@ -155,8 +141,6 @@ float4 GetDiffuse(in float4 vcolor)
 
 	return color;
 }
-
-// Vertex shaders
 
 PS_IN vs_main(VS_IN input)
 {

@@ -29,14 +29,14 @@
   To determine whether or not the bug is caused by another mod, or is due to a conflict with
   another mod, follow these steps:
 
-  - DISABLE ONLY sadx-dc-lighting AND TRY AGAIN. If the bug persists, it is not an issue
-    with sadx-dc-lighting and should be reported to the author of those mods through 
+  - DISABLE ONLY sadx-gc-lighting AND TRY AGAIN. If the bug persists, it is not an issue
+    with sadx-gc-lighting and should be reported to the author of those mods through 
     appropriate channels.
 
-  - Enable sadx-dc-lighting and one other mod, and try again. Add and test one additional mod
+  - Enable sadx-gc-lighting and one other mod, and try again. Add and test one additional mod
     at a time until the issue can be reproduced.
 
-  If the bug cannot be reproduced under these conditions, it is UNLIKELY that sadx-dc-lighting
+  If the bug cannot be reproduced under these conditions, it is UNLIKELY that sadx-gc-lighting
   is the cause.
 
 -->
@@ -53,7 +53,7 @@ Write a brief description of the behavior you expected here.
   Screenshots are also OK.
 -->
 * sadx-input-mod
-* sadx-dc-lighting
+* sadx-gc-lighting
 * ???
 
 #### Steps to reproduce:
