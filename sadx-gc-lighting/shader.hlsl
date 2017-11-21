@@ -222,30 +222,30 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 	//return float4(input.depth.x / input.depth.y, 0, 0, 1);
 	return float4(input.fogDist, 0, 0, 1);
 #elif defined(SOFT_PARTICLE)
-
-	float2 coord = vpos / (ViewPort - 0.5);
-
-	//float particleDepth = input.depth.x / input.depth.y;
-	float particleDepth = input.fogDist;
-	float depthSample = tex2D(depthSampler, coord).r;
-
-#if 0
-	float4 depthViewSample = mul(-ProjectionMatrix, float4(coord, depthSample, 1));
-	float4 depthViewParticle = mul(-ProjectionMatrix, float4(coord, particleDepth, 1));
-
-	float depthDiff = (depthViewSample.z / depthViewSample.w) - (depthViewParticle.z / depthViewParticle.w);
-#else
-	float depthDiff = (depthSample - particleDepth) / ParticleScale;
-#endif
-	
-	if (depthDiff < 0)
 	{
-		discard;
+		float2 coord = vpos / (ViewPort - 0.5);
+
+		//float particleDepth = input.depth.x / input.depth.y;
+		float particleDepth = input.fogDist;
+		float depthSample = tex2D(depthSampler, coord).r;
+
+	#if 0
+		float4 depthViewSample = mul(-ProjectionMatrix, float4(coord, depthSample, 1));
+		float4 depthViewParticle = mul(-ProjectionMatrix, float4(coord, particleDepth, 1));
+
+		float depthDiff = (depthViewSample.z / depthViewSample.w) - (depthViewParticle.z / depthViewParticle.w);
+	#else
+		float depthDiff = (depthSample - particleDepth) / ParticleScale;
+	#endif
+
+		if (depthDiff < 0)
+		{
+			discard;
+		}
+
+		float depthFade = saturate(depthDiff /* / g_fFadeDistance */);
+		result.a *= depthFade;
 	}
-
-	float depthFade = saturate(depthDiff /* / g_fFadeDistance */);
-	result.a *= depthFade;
-
 #else
 	// debug depth output
 	//float f = (input.fogDist / DrawDistance);
