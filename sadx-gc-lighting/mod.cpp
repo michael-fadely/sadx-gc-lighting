@@ -16,7 +16,6 @@
 static Trampoline* Direct3D_ParseMaterial_t        = nullptr;
 static Trampoline* DrawLandTable_t                 = nullptr;
 
-DataPointer(PaletteLight, LSPalette, 0x03ABDAF0);
 DataPointer(NJS_VECTOR, NormalScaleMultiplier, 0x03B121F8);
 
 static void update_material(const D3DMATERIAL9& material)

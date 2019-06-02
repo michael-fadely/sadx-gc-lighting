@@ -201,8 +201,6 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 
 	// TODO: fix material power of 0 (for real though)
 	specular.rgb = MaterialSpecular.rgb * saturate(LightSpecular.rgb * pow(max(0.0001f, d2), max(1.0, MaterialPower)));
-#elif defined(SOFT_PARTICLE)
-	diffuse = float4(1, 1, 1, 1);
 #else
 	diffuse = input.diffuse;
 #endif
@@ -215,7 +213,7 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 #endif
 
 #ifdef USE_ALPHA
-	clip(result.a < AlphaRef ? -1 : 1);
+	//clip(result.a < AlphaRef ? -1 : 1);
 #endif
 
 #if defined(DEPTH_MAP)
