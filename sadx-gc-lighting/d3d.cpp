@@ -465,7 +465,7 @@ namespace local
 
 	static void populate_macros(Uint32 flags)
 	{
-	//#define USE_SMOOTH_LIGHTING
+	#define USE_SMOOTH_LIGHTING
 
 	#ifdef USE_SMOOTH_LIGHTING
 		macros.push_back({ "USE_SMOOTH_LIGHTING", "1" });
@@ -1605,7 +1605,14 @@ namespace d3d
 			local::shader_start();
 			{
 				//njDrawSprite3D_DrawNow(sp, n, attr);
+
+				DWORD ZENABLE;
+				device->GetRenderState(D3DRS_ZENABLE, &ZENABLE);
+				device->SetRenderState(D3DRS_ZENABLE, TRUE);
+
 				draw_particle(sp, n, attr);
+
+				device->SetRenderState(D3DRS_ZENABLE, ZENABLE);
 			}
 			local::shader_end();
 

@@ -148,8 +148,8 @@ PS_IN vs_main(VS_IN input)
 
 	output.position = mul(float4(input.position, 1), wvMatrix);
 	output.fogDist = output.position.z;
-	output.position = mul(output.position, ProjectionMatrix);
 	output.depth = output.position.zw;
+	output.position = mul(output.position, ProjectionMatrix);
 
 #if defined(USE_TEXTURE) && defined(USE_ENVMAP)
 	output.tex = (float2)mul(float4(input.normal, 1), wvMatrixInvT);
@@ -217,37 +217,30 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 #endif
 
 #if defined(DEPTH_MAP)
-	//return float4(input.depth.x / input.depth.y, 0, 0, 1);
-	return float4(input.fogDist, 0, 0, 1);
+	return float4(input.depth.x / input.depth.y, 0, 0, 1);
 #elif defined(SOFT_PARTICLE)
 	{
 		float2 coord = vpos / (ViewPort - 0.5);
 
-		//float particleDepth = input.depth.x / input.depth.y;
-		float particleDepth = input.fogDist;
+		float particleDepth = input.depth.x / input.depth.y;
 		float depthSample = tex2D(depthSampler, coord).r;
 
-	#if 0
-		float4 depthViewSample = mul(-ProjectionMatrix, float4(coord, depthSample, 1));
-		float4 depthViewParticle = mul(-ProjectionMatrix, float4(coord, particleDepth, 1));
+		float delta = depthSample - particleDepth;
 
-		float depthDiff = (depthViewSample.z / depthViewSample.w) - (depthViewParticle.z / depthViewParticle.w);
-	#else
-		float depthDiff = (depthSample - particleDepth) / ParticleScale;
-	#endif
-
-		if (depthDiff < 0)
+		if (delta < 0)
 		{
-			discard;
+			clip(-1);
 		}
 
-		float depthFade = saturate(depthDiff /* / g_fFadeDistance */);
-		result.a *= depthFade;
+		float depthFade = saturate(delta / ParticleScale);
+		result.a *= depthFade; // TODO: modulate color or alpha depending on blending modes
+		// return float4(depthFade, depthFade, depthFade, 1);
 	}
 #else
 	// debug depth output
 	//float f = (input.fogDist / DrawDistance);
 	//return float4(f, f, f, 1);
+	// return float4(0,0,0,1);
 #endif
 
 #ifdef USE_FOG
