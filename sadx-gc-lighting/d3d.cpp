@@ -471,60 +471,41 @@ namespace local
 		macros.push_back({ "USE_SMOOTH_LIGHTING", "1" });
 	#endif
 
-		while (flags != 0)
+		using namespace d3d;
+
+		if (flags & ShaderFlags_SoftParticle)
 		{
-			using namespace d3d;
+			macros.push_back({ "SOFT_PARTICLE", "1" });
+		}
 
-			if (flags & ShaderFlags_SoftParticle)
-			{
-				flags &= ~ShaderFlags_SoftParticle;
-				macros.push_back({ "SOFT_PARTICLE", "1" });
-				continue;
-			}
+		if (flags & ShaderFlags_DepthMap)
+		{
+			macros.push_back({ "DEPTH_MAP", "1" });
+		}
 
-			if (flags & ShaderFlags_DepthMap)
-			{
-				flags &= ~ShaderFlags_DepthMap;
-				macros.push_back({ "DEPTH_MAP", "1" });
-				continue;
-			}
+		if (flags & ShaderFlags_Texture)
+		{
+			macros.push_back({ "USE_TEXTURE", "1" });
+		}
 
-			if (flags & ShaderFlags_Texture)
-			{
-				flags &= ~ShaderFlags_Texture;
-				macros.push_back({ "USE_TEXTURE", "1" });
-				continue;
-			}
+		if (flags & ShaderFlags_EnvMap)
+		{
+			macros.push_back({ "USE_ENVMAP", "1" });
+		}
 
-			if (flags & ShaderFlags_EnvMap)
-			{
-				flags &= ~ShaderFlags_EnvMap;
-				macros.push_back({ "USE_ENVMAP", "1" });
-				continue;
-			}
+		if (flags & ShaderFlags_Light)
+		{
+			macros.push_back({ "USE_LIGHT", "1" });
+		}
 
-			if (flags & ShaderFlags_Light)
-			{
-				flags &= ~ShaderFlags_Light;
-				macros.push_back({ "USE_LIGHT", "1" });
-				continue;
-			}
+		if (flags & ShaderFlags_Alpha)
+		{
+			macros.push_back({ "USE_ALPHA", "1" });
+		}
 
-			if (flags & ShaderFlags_Alpha)
-			{
-				flags &= ~ShaderFlags_Alpha;
-				macros.push_back({ "USE_ALPHA", "1" });
-				continue;
-			}
-
-			if (flags & ShaderFlags_Fog)
-			{
-				flags &= ~ShaderFlags_Fog;
-				macros.push_back({ "USE_FOG", "1" });
-				continue;
-			}
-
-			break;
+		if (flags & ShaderFlags_Fog)
+		{
+			macros.push_back({ "USE_FOG", "1" });
 		}
 
 		macros.push_back({});
@@ -1056,8 +1037,6 @@ namespace local
 	template<typename T, typename... Args>
 	static HRESULT run_d3d_trampoline(const T& original, Args... args)
 	{
-		HRESULT result;
-
 		shader_guard guard;
 		const auto old_flags = shader_flags;
 
@@ -1080,7 +1059,7 @@ namespace local
 		depth_texture->GetSurfaceLevel(0, &depth_surface);
 		d3d::device->SetRenderTarget(0, depth_surface);
 
-		result = original(args...);
+		HRESULT result = original(args...);
 
 		d3d::device->SetRenderTarget(0, original_backbuffer);
 		d3d::device->SetRenderState(D3DRS_ZWRITEENABLE, ZWRITEENABLE);
@@ -1095,8 +1074,7 @@ namespace local
 		shader_flags = old_flags;
 
 		shader_start();
-		result = original(args...);
-		return result;
+		return original(args...);
 	}
 
 	static HRESULT __stdcall DrawPrimitive_r(IDirect3DDevice9* _this,
@@ -1257,6 +1235,7 @@ namespace d3d
 			local::no_depth = false;
 		}
 	};
+
 #if 0
 	static void draw_fullscreen_quad()
 	{
@@ -1328,7 +1307,6 @@ namespace d3d
 		param::ViewPort.commit_now(device);
 	}
 #endif
-
 
 	static Direct3DVertexBuffer8* particle_quad = nullptr;
 
@@ -1547,7 +1525,6 @@ namespace d3d
 		Direct3D_SetWorldTransform();
 	}
 
-
 	void __cdecl njDrawSprite3D_DrawNow_r(NJS_SPRITE* sp, int n, NJD_SPRITE attr);
 	static Trampoline njDrawSprite3D_DrawNow_t(0x0077E390, 0x0077E398, &njDrawSprite3D_DrawNow_r);
 	void __cdecl njDrawSprite3D_DrawNow_r(NJS_SPRITE* sp, int n, NJD_SPRITE attr)
@@ -1627,7 +1604,6 @@ namespace d3d
 	static Trampoline* Direct3D_Present_t = nullptr;
 	void __cdecl Direct3D_Present_r()
 	{
-
 		const auto target = TARGET_DYNAMIC(Direct3D_Present);
 		target();
 
