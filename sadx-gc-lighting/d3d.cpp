@@ -28,6 +28,7 @@
 #include "globals.h"
 #include "ShaderParameter.h"
 #include "FileSystem.h"
+#include <algorithm>
 
 namespace param
 {
