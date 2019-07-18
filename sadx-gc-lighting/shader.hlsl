@@ -80,6 +80,9 @@ float4 LightDiffuse  : register(c30);
 float4 LightSpecular : register(c31);
 float4 LightAmbient  : register(c32);
 
+float  SourceBlend      : register(c33);
+float  DestinationBlend : register(c34);
+
 #define DEFAULT_SAMPLER \
 	MinFilter = Point;\
 	MagFilter = Point;\
@@ -225,22 +228,58 @@ float4 ps_main(PS_IN input, in float2 vpos : VPOS) : COLOR
 		float particleDepth = input.depth.x / input.depth.y;
 		float depthSample = tex2D(depthSampler, coord).r;
 
-		float delta = depthSample - particleDepth;
+	#define CENTER
 
-		if (delta < 0)
+	#ifdef CENTER
+		float particleSize = ParticleScale / 2;
+	#else
+		float particleSize = ParticleScale;
+	#endif
+
+	#ifdef CENTER
+		float delta = depthSample - (particleDepth - particleSize);
+	#else
+		float delta = depthSample - particleDepth;
+	#endif
+
+	#ifdef CENTER
+		float clipThreshold = -(ParticleScale / 2);
+	#else
+		float clipThreshold = 0;
+	#endif
+
+		if (delta < clipThreshold)
 		{
 			clip(-1);
 		}
 
-		float depthFade = saturate(delta / ParticleScale);
-		result.a *= depthFade; // TODO: modulate color or alpha depending on blending modes
-		// return float4(depthFade, depthFade, depthFade, 1);
+		float depthFade = delta / particleSize;
+
+	#ifdef CENTER
+		depthFade = saturate((depthFade + 1) / 2);
+	#else
+		depthFade = saturate(depthFade);
+	#endif
+
+		const float4 red   = float4(1, 0, 0, 1);
+		const float4 green = float4(0, 1, 0, 1);
+		const float4 blue  = float4(0, 0, 1, 1);
+
+		//return lerp(lerp(blue, green, depthFade / 0.5), red, (depthFade - 0.5) / 0.5);
+
+		if (SourceBlend == 2 || DestinationBlend == 2)
+		{
+			result.rgb *= depthFade;
+		}
+		else
+		{
+			result.a *= depthFade;
+		}
 	}
 #else
 	// debug depth output
 	//float f = (input.fogDist / DrawDistance);
 	//return float4(f, f, f, 1);
-	// return float4(0,0,0,1);
 #endif
 
 #ifdef USE_FOG

@@ -178,6 +178,7 @@ extern "C"
 		if (pad)
 		{
 			const auto pressed = pad->PressedButtons;
+
 			if (pressed & Buttons_C)
 			{
 				d3d::load_shader();
@@ -185,14 +186,24 @@ extern "C"
 
 			if (pressed & Buttons_Up)
 			{
-				globals::particle_scale += 0.5f;
+				const float factor = globals::particle_scale < 1.0f ? 0.25f : 0.5f;
+				globals::particle_scale += factor;
 			}
 			else if (pressed & Buttons_Down)
 			{
-				globals::particle_scale -= 0.5f;
+				const float factor = globals::particle_scale > 1.0f ? 0.5f : 0.25f;
+				globals::particle_scale -= factor;
+			}
+			else if (pressed & Buttons_Left)
+			{
+				globals::particle_scale /= 2.0f;
+			}
+			else if (pressed & Buttons_Right)
+			{
+				globals::particle_scale *= 2.0f;
 			}
 
-			globals::particle_scale = max(1.0f, globals::particle_scale);
+			globals::particle_scale = std::max(0.25f, globals::particle_scale);
 		}
 
 		DisplayDebugStringFormatted(NJM_LOCATION(10, 10), "PARTICLE SCALE: %f", globals::particle_scale);

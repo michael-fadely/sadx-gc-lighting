@@ -56,6 +56,8 @@ namespace param
 	extern ShaderParameter<D3DXCOLOR> LightDiffuse;
 	extern ShaderParameter<D3DXCOLOR> LightSpecular;
 	extern ShaderParameter<D3DXCOLOR> LightAmbient;
+	extern ShaderParameter<float> SourceBlend;
+	extern ShaderParameter<float> DestinationBlend;
 	extern ShaderParameter<float> ParticleScale;
 	extern ShaderParameter<float> DepthOverride;
 	extern ShaderParameter<float> DrawDistance;

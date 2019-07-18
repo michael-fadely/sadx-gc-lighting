@@ -52,6 +52,8 @@ namespace param
 	ShaderParameter<D3DXCOLOR>   LightDiffuse(30, {}, IShaderParameter::Type::pixel);
 	ShaderParameter<D3DXCOLOR>   LightSpecular(31, {}, IShaderParameter::Type::pixel);
 	ShaderParameter<D3DXCOLOR>   LightAmbient(32, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<float>       SourceBlend(33, {}, IShaderParameter::Type::pixel);
+	ShaderParameter<float>       DestinationBlend(34, {}, IShaderParameter::Type::pixel);
 
 	ShaderParameter<float>       ParticleScale(44, 0.0f, IShaderParameter::Type::pixel);
 	ShaderParameter<float>       DepthOverride(45, 0.0f, IShaderParameter::Type::pixel);
@@ -77,6 +79,8 @@ namespace param
 		&LightDiffuse,
 		&LightSpecular,
 		&LightAmbient,
+		&SourceBlend,
+		&DestinationBlend,
 		&ParticleScale,
 		&DepthOverride,
 		&DrawDistance,
@@ -1040,8 +1044,17 @@ namespace local
 		shader_guard guard;
 		const auto old_flags = shader_flags;
 
-		DWORD ZWRITEENABLE;
+		DWORD SRCBLEND;
+		d3d::device->GetRenderState(D3DRS_SRCBLEND, &SRCBLEND);
+		DWORD DESTBLEND;
+		d3d::device->GetRenderState(D3DRS_DESTBLEND, &DESTBLEND);
+
+		param::SourceBlend = static_cast<float>(SRCBLEND);
+		param::DestinationBlend = static_cast<float>(DESTBLEND);
+
+		DWORD ZWRITEENABLE, ZFUNC;
 		d3d::device->GetRenderState(D3DRS_ZWRITEENABLE, &ZWRITEENABLE);
+		d3d::device->GetRenderState(D3DRS_ZFUNC, &ZFUNC);
 
 		if (!ZWRITEENABLE || no_depth)
 		{
@@ -1054,7 +1067,9 @@ namespace local
 		shader_flags |= ShaderFlags_DepthMap;
 		shader_start();
 
-		d3d::device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+		d3d::device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+		d3d::device->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESS);
+
 		Surface depth_surface;
 		depth_texture->GetSurfaceLevel(0, &depth_surface);
 		d3d::device->SetRenderTarget(0, depth_surface);
@@ -1063,6 +1078,7 @@ namespace local
 
 		d3d::device->SetRenderTarget(0, original_backbuffer);
 		d3d::device->SetRenderState(D3DRS_ZWRITEENABLE, ZWRITEENABLE);
+		d3d::device->SetRenderState(D3DRS_ZFUNC, ZFUNC);
 		
 		if (FAILED(result))
 		{
@@ -1074,7 +1090,11 @@ namespace local
 		shader_flags = old_flags;
 
 		shader_start();
-		return original(args...);
+
+		d3d::device->SetRenderState(D3DRS_ZFUNC, D3DCMP_EQUAL);
+		result = original(args...);
+		d3d::device->SetRenderState(D3DRS_ZFUNC, ZFUNC);
+		return result;
 	}
 
 	static HRESULT __stdcall DrawPrimitive_r(IDirect3DDevice9* _this,
@@ -1414,7 +1434,7 @@ namespace d3d
 			particle_quad->Unlock();
 		}
 
-		const float size = max(tanim.sx, tanim.sy) * max(sp->sx, sp->sy);
+		const float size = (std::max(tanim.sx, tanim.sy) * std::max(sp->sx, sp->sy)) / 4.0f;
 		param::ParticleScale = globals::particle_scale * size;
 
 		const auto old_world = ::WorldMatrix;
@@ -1563,6 +1583,10 @@ namespace d3d
 		{
 			param::DepthOverride = node->Depth;
 		}
+		else
+		{
+			param::DepthOverride = 0;
+		}
 
 		if (ControllerPointers[0] && ControllerPointers[0]->HeldButtons & Buttons_Z)
 		{
@@ -1585,7 +1609,8 @@ namespace d3d
 
 				DWORD ZENABLE;
 				device->GetRenderState(D3DRS_ZENABLE, &ZENABLE);
-				device->SetRenderState(D3DRS_ZENABLE, TRUE);
+				//device->SetRenderState(D3DRS_ZENABLE, TRUE);
+				device->SetRenderState(D3DRS_ZENABLE, FALSE);
 
 				draw_particle(sp, n, attr);
 
